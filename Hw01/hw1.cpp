@@ -73,7 +73,7 @@ int main(int argc, char const *argv[])
 	parseConnection(tcpMap,TCP,"/proc/net/tcp");
 	//parseConnection(tcpMap,TCPV6,"/proc/net/tcp6");
 	parseConnection(udpMap,UDP,"/proc/net/udp");
-	//parseConnection(udpMap,UDP6,"/proc/net/udp6");
+	//parseConnection(udpMap,UDPV6,"/proc/net/udp6");
 
 	parseCurrentProcess(tcpMap,udpMap);
 
@@ -86,7 +86,7 @@ int main(int argc, char const *argv[])
 void printTCPConnection(map<unsigned int,Connection> &tcpMap)
 {
 	cout << "List of TCP connecions:" << endl;
-	cout << left << setw(5) << "Proto" << left << setw(10) << "Local Address" << left << setw(10) << "Foreign Address" << left << setw(20) << "PID/Program name and arguments" << endl;
+	cout << left << setw(20) << "Proto" << left << setw(23) << "Local Address" << left << setw(33) << "Foreign Address" << left << setw(30) << "PID/Program name and arguments" << endl;
 
 	map<unsigned int,Connection>::iterator it = tcpMap.begin();
 	while(it != tcpMap.end())
@@ -94,13 +94,13 @@ void printTCPConnection(map<unsigned int,Connection> &tcpMap)
 		Connection currentConnt = it->second;
 
 		if(currentConnt.type == TCPV6)
-			cout << left << setw(5) << "tcp6";
+			cout << setw(20) << "tcp6";
 		else
-			cout << left << setw(5) << "tcp";
+			cout << setw(20) << "tcp";
 
-		cout << left << setw(10) << currentConnt.localIp << ":" << currentConnt.localPort ;
-		cout << left << setw(10) << currentConnt.remoteIp << ":" << currentConnt.remotePort ;
-		cout << left << setw(20) << currentConnt.pid << "/" << currentConnt.cmdline << endl ;
+		cout << currentConnt.localIp << ":" << setw(20) << currentConnt.localPort ;
+		cout << currentConnt.remoteIp << ":" << setw(30) << currentConnt.remotePort ;
+		cout << currentConnt.pid << "/" << currentConnt.cmdline << endl ;
 
 		it ++;
 	}
@@ -108,8 +108,9 @@ void printTCPConnection(map<unsigned int,Connection> &tcpMap)
 
 void printUDPConnection(map<unsigned int,Connection> &udpMap)
 {
-	cout << left << setw(5) << "Proto" << left << setw(10) << "Local Address" << left << setw(10) << "Foreign Address" << left << setw(20) << "PID/Program name and arguments" << endl;
 	cout << "List of UDP connecions:" << endl;
+	cout << left << setw(20) << "Proto" << left << setw(23) << "Local Address" << left << setw(33) << "Foreign Address" << left << setw(30) << "PID/Program name and arguments" << endl;
+	
 
 	map<unsigned int,Connection>::iterator it = udpMap.begin();
 	while(it != udpMap.end())
@@ -117,13 +118,13 @@ void printUDPConnection(map<unsigned int,Connection> &udpMap)
 		Connection currentConnt = it->second;
 
 		if(currentConnt.type == UDPV6)
-			cout << left << setw(5) << "tcp6";
+			cout << setw(20) << "udp6";
 		else
-			cout << left << setw(5) << "tcp";
+			cout << setw(20) << "udp";
 
-		cout << left << setw(10) << currentConnt.localIp << ":" << currentConnt.localPort ;
-		cout << left << setw(10) << currentConnt.remoteIp << ":" << currentConnt.remotePort ;
-		cout << left << setw(20) << currentConnt.pid << "/" << currentConnt.cmdline << endl ;
+		cout << currentConnt.localIp << ":" << setw(20) << currentConnt.localPort ;
+		cout << currentConnt.remoteIp << ":" << setw(30) << currentConnt.remotePort ;
+		cout << currentConnt.pid << "/" << currentConnt.cmdline << endl ;
 
 		it ++;
 	}
@@ -203,7 +204,7 @@ void parseCurrentProcess(map<unsigned int,Connection> &tcpMap,map<unsigned int,C
 char* ipv6IpConvert(string ipHex)
 {
 	struct in6_addr tmp_ip;
-	char ipStr[128] ;
+	char *ipStr = (char*)malloc(128 * sizeof(char)) ;
 
 	if (sscanf(ipHex.c_str(),
 		"%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx",
@@ -251,6 +252,7 @@ char* getProcessCmdlineInfo(const int pid)
 			fclose(f);
 		}
 	}
+	free(name);
 	return result;
 }
 
@@ -296,8 +298,9 @@ void parseConnection(map<unsigned int,Connection> &connectionMap,ConnectionType 
 			}
 			else
 			{
-				strcpy(newConnection.localIp,ipv6IpConvert(newConnection.localIp));
-				strcpy(newConnection.remoteIp,ipv6IpConvert(newConnection.remoteIp));
+				
+				strcpy(newConnection.localIp,ipv6IpConvert(localIpAndPort.at(0)));
+				strcpy(newConnection.remoteIp,ipv6IpConvert(remoteIpAndPort.at(0)));
 			}
 			//
             //newConnection.remoteIp = atoi(tempIpAndPort.at(0).c_str());
