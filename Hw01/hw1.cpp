@@ -15,21 +15,35 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include <arpa/inet.h>
+#include <errno.h>
+
 
 using namespace std;
 
+#define BUF_LENGTH 1024
+#define PORT_LENGTH 50 
+
+enum ConnectionType
+{
+	TCP,
+	TCPV6,
+	UDP,
+	UDP6
+};
+
 struct Connection{
-	int type ; /* 0:tcp , 1:udp*/
-	unsigned int localIp;
-	unsigned int localPort;
-	unsigned int remoteIp;
-	unsigned int remotePort;
+	ConnectionType type; 			
+	char localIp[INET_ADDRSTRLEN];
+	char localPort[PORT_LENGTH];
+	char remoteIp[INET_ADDRSTRLEN];
+	char remotePort[PORT_LENGTH];
 	int pid;
 	char* cmdline;
 	unsigned int inodeIndex;	
 };
 
-void parseConnection(map<unsigned int,Connection>&,int,string);
+void parseConnection(map<unsigned int,Connection>&,ConnectionType,string);
 vector<string> &splitString(const string&,char,vector<string>&);
 vector<string> splitAnySpace(const string&);
 void printVector(vector<string>);
@@ -46,14 +60,16 @@ int main(int argc, char const *argv[])
 	map<unsigned int,Connection> tcpMap;
 	map<unsigned int,Connection> udpMap;
 
-	parseConnection(tcpMap,0,"/proc/net/tcp");
-	parseConnection(udpMap,1,"/proc/net/udp");
+	// if all
+	// else if tcp
+	// else if udp
+
+	parseConnection(tcpMap,TCP,"/proc/net/tcp");
+	//parseConnection(tcpMap,TCPV6,"/proc/net/tcp6");
+	parseConnection(udpMap,UDP,"/proc/net/udp");
+	//parseConnection(udpMap,UDP6,"/proc/net/udp6");
 
 	parseCurrentProcess(tcpMap,udpMap);
-	//std::ifstream tcp("/proc/net/tcp");
-	//std::string line;
-    	//while(std::getline(tcp, line))
-        // 	std::cout << line << '\n';
 	
 	return 0;
 }
@@ -65,9 +81,7 @@ void parseCurrentProcess(map<unsigned int,Connection> &tcpMap,map<unsigned int,C
 	long tgid;
 
 	if(proc == NULL)
-	{
-		cout << "error!" << endl;
-	}
+		perror("Can't open /proc!");
 
 	while(ent = readdir(proc))
 	{
@@ -84,8 +98,8 @@ void parseCurrentProcess(map<unsigned int,Connection> &tcpMap,map<unsigned int,C
 		DIR* inProc = opendir(buf);
 		struct dirent* procEnt;
 		
-		if(inProc == NULL);
-			//cout << "error! permission denied!" << endl;
+		if(inProc == NULL)
+			perror("Can't open /proc/[pid]/fd!");
 		else
 		{
 			while(procEnt = readdir(inProc))
@@ -96,19 +110,16 @@ void parseCurrentProcess(map<unsigned int,Connection> &tcpMap,map<unsigned int,C
 				strcat(buf2,procEnt->d_name);
 				//cout << buf2 << endl;
 				
-				//char buf3[10];
-				//readlink(buf2,buf3,sizeof(buf3));
-				//cout << buf3 << endl;
+				
 				struct stat sb;
 				stat(buf2, &sb);
-				// (long)sb.st_ino
+			
 				 	
 				map<unsigned int,Connection>::iterator it ;
 				
 				it = tcpMap.find((long)sb.st_ino);
 				if(it != tcpMap.end()) /* it's tcp connection */
 				{	
-					cout << "tcp process:" << tgid << endl;
 					(it->second).pid = tgid;
 					(it->second).cmdline = getProcessCmdlineInfo(tgid);
 				}
@@ -117,7 +128,6 @@ void parseCurrentProcess(map<unsigned int,Connection> &tcpMap,map<unsigned int,C
 					it = udpMap.find((long)sb.st_ino);
 					if( it != udpMap.end()) /* it's udp connection */
 					{
-						cout<< "udp process:" << tgid <<endl;
 						(it->second).pid = tgid;
 						(it->second).cmdline = getProcessCmdlineInfo(tgid);		
 					}
@@ -152,23 +162,6 @@ char* getProcessCmdlineInfo(const int pid)
 				if('\n' == name[size-1])
 					name[size-1] = '\0';
 				
-				/*
-				char* tok;
-				tok = strtok("123\03333\0","\0");
-				//cout << strlen(name) << endl;
-				//cout << tok << endl;
-				//strcpy(result,tok);	
-				//strcat(result," ");
-				while(tok != NULL)
-				{
-					cout << tok << endl;
-					tok = strtok(NULL,'\0');
-					//strcat(result,tok);
-					//strcat(result," ");
-					cout << tok << endl;
-				}
-				*/
-				
 				int i;
 				result = (char*)malloc(size * sizeof(char)); 
 				for(i=0 ; i < size ;i ++)
@@ -188,7 +181,7 @@ char* getProcessCmdlineInfo(const int pid)
 	return result;
 }
 
-void parseConnection(map<unsigned int,Connection> &connectionMap,int connectionType,string path)
+void parseConnection(map<unsigned int,Connection> &connectionMap,ConnectionType connectionType,string path)
 {
 	bool isFirstLine = true;
 	ifstream connection(path.c_str());
@@ -207,22 +200,34 @@ void parseConnection(map<unsigned int,Connection> &connectionMap,int connectionT
 			//printVector(tempVector);
 			
 			Connection newConnection;
-			unsigned int newIp;
-			unsigned int newPort;
-			vector<string> tempIpAndPort;		
+			unsigned int newLocalIp,newRemoteIp;
+			vector<string> localIpAndPort,remoteIpAndPort;		
 	
 			newConnection.type = connectionType;
 			newConnection.inodeIndex = atoi(tempVector.at(9).c_str());
 			
-			tempIpAndPort =	splitString(tempVector.at(1), ':', tempIpAndPort);
-			newConnection.localIp = atoi(tempIpAndPort.at(0).c_str());
-			newConnection.localPort = atoi(tempIpAndPort.at(1).c_str());
-			
-			tempIpAndPort.clear();			
+			localIpAndPort = splitString(tempVector.at(1), ':', localIpAndPort);
+			remoteIpAndPort = splitString(tempVector.at(2), ':', remoteIpAndPort);
 
-			tempIpAndPort = splitString(tempVector.at(2), ':', tempIpAndPort);
-                        newConnection.remoteIp = atoi(tempIpAndPort.at(0).c_str());
-                        newConnection.remotePort = atoi(tempIpAndPort.at(1).c_str());
+
+			strcpy(newConnection.localPort,localIpAndPort.at(1).c_str());
+			strcpy(newConnection.remotePort,remoteIpAndPort.at(1).c_str());
+
+			newLocalIp = atoi(localIpAndPort.at(0).c_str());
+			newRemoteIp = atoi(remoteIpAndPort.at(0).c_str());
+
+			if(connectionType == TCP || connectionType == UDP)
+			{
+				inet_ntop(AF_INET, &newLocalIp, newConnection.localIp, sizeof(newConnection.localIp));
+				inet_ntop(AF_INET, &newRemoteIp, newConnection.remoteIp, sizeof(newConnection.remoteIp));
+			}
+			else
+			{
+
+			}
+			//
+            //newConnection.remoteIp = atoi(tempIpAndPort.at(0).c_str());
+            
 
 			connectionMap[newConnection.inodeIndex] = newConnection;	
 		}
@@ -245,6 +250,8 @@ vector<string> splitAnySpace(const string &source)
 	vector<string> vec((istream_iterator<string>(ss)), istream_iterator<string>() );
 	return vec;
 }
+
+
 
 void printVector(vector<string> vec)
 {
