@@ -17,6 +17,9 @@
 
 #include <arpa/inet.h>
 #include <errno.h>
+#include <netinet/in.h>
+
+#include <iomanip>
 
 
 using namespace std;
@@ -29,18 +32,18 @@ enum ConnectionType
 	TCP,
 	TCPV6,
 	UDP,
-	UDP6
+	UDPV6
 };
 
 struct Connection{
 	ConnectionType type; 			
 	char localIp[INET_ADDRSTRLEN];
-	char localPort[PORT_LENGTH];
+	unsigned int localPort;
 	char remoteIp[INET_ADDRSTRLEN];
-	char remotePort[PORT_LENGTH];
+	unsigned int remotePort;
 	int pid;
 	char* cmdline;
-	unsigned int inodeIndex;	
+	unsigned int inodeIndex;
 };
 
 void parseConnection(map<unsigned int,Connection>&,ConnectionType,string);
@@ -52,7 +55,10 @@ void splitIpAndPort(string,unsigned int&,unsigned int&);
 
 void parseCurrentProcess(map<unsigned int,Connection>&,map<unsigned int,Connection>&);
 char* getProcessCmdlineInfo(const int);
+char* ipv6IpConvert(string);
 
+void printTCPConnection(map<unsigned int,Connection>&);
+void printUDPConnection(map<unsigned int,Connection>&);
 
 int main(int argc, char const *argv[])
 {
@@ -70,8 +76,57 @@ int main(int argc, char const *argv[])
 	//parseConnection(udpMap,UDP6,"/proc/net/udp6");
 
 	parseCurrentProcess(tcpMap,udpMap);
+
+	printTCPConnection(tcpMap);
+	printUDPConnection(udpMap);
 	
 	return 0;
+}
+
+void printTCPConnection(map<unsigned int,Connection> &tcpMap)
+{
+	cout << "List of TCP connecions:" << endl;
+	cout << left << setw(5) << "Proto" << left << setw(10) << "Local Address" << left << setw(10) << "Foreign Address" << left << setw(20) << "PID/Program name and arguments" << endl;
+
+	map<unsigned int,Connection>::iterator it = tcpMap.begin();
+	while(it != tcpMap.end())
+	{
+		Connection currentConnt = it->second;
+
+		if(currentConnt.type == TCPV6)
+			cout << left << setw(5) << "tcp6";
+		else
+			cout << left << setw(5) << "tcp";
+
+		cout << left << setw(10) << currentConnt.localIp << ":" << currentConnt.localPort ;
+		cout << left << setw(10) << currentConnt.remoteIp << ":" << currentConnt.remotePort ;
+		cout << left << setw(20) << currentConnt.pid << "/" << currentConnt.cmdline << endl ;
+
+		it ++;
+	}
+}
+
+void printUDPConnection(map<unsigned int,Connection> &udpMap)
+{
+	cout << left << setw(5) << "Proto" << left << setw(10) << "Local Address" << left << setw(10) << "Foreign Address" << left << setw(20) << "PID/Program name and arguments" << endl;
+	cout << "List of UDP connecions:" << endl;
+
+	map<unsigned int,Connection>::iterator it = udpMap.begin();
+	while(it != udpMap.end())
+	{
+		Connection currentConnt = it->second;
+
+		if(currentConnt.type == UDPV6)
+			cout << left << setw(5) << "tcp6";
+		else
+			cout << left << setw(5) << "tcp";
+
+		cout << left << setw(10) << currentConnt.localIp << ":" << currentConnt.localPort ;
+		cout << left << setw(10) << currentConnt.remoteIp << ":" << currentConnt.remotePort ;
+		cout << left << setw(20) << currentConnt.pid << "/" << currentConnt.cmdline << endl ;
+
+		it ++;
+	}
 }
 
 void parseCurrentProcess(map<unsigned int,Connection> &tcpMap,map<unsigned int,Connection> &udpMap)
@@ -145,6 +200,24 @@ void parseCurrentProcess(map<unsigned int,Connection> &tcpMap,map<unsigned int,C
 
 }
 
+char* ipv6IpConvert(string ipHex)
+{
+	struct in6_addr tmp_ip;
+	char ipStr[128] ;
+
+	if (sscanf(ipHex.c_str(),
+		"%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx",
+		&tmp_ip.s6_addr[3], &tmp_ip.s6_addr[2], &tmp_ip.s6_addr[1], &tmp_ip.s6_addr[0],
+		&tmp_ip.s6_addr[7], &tmp_ip.s6_addr[6], &tmp_ip.s6_addr[5], &tmp_ip.s6_addr[4],
+		&tmp_ip.s6_addr[11], &tmp_ip.s6_addr[10], &tmp_ip.s6_addr[9], &tmp_ip.s6_addr[8],
+		&tmp_ip.s6_addr[15], &tmp_ip.s6_addr[14], &tmp_ip.s6_addr[13], &tmp_ip.s6_addr[12]) == 16) 
+	{
+		inet_ntop(AF_INET6, &tmp_ip, ipStr, sizeof(ipStr));
+	}
+
+	return ipStr;
+}
+
 char* getProcessCmdlineInfo(const int pid)
 {
 	char* name = (char*)calloc(1024,sizeof(char));
@@ -210,8 +283,8 @@ void parseConnection(map<unsigned int,Connection> &connectionMap,ConnectionType 
 			remoteIpAndPort = splitString(tempVector.at(2), ':', remoteIpAndPort);
 
 
-			strcpy(newConnection.localPort,localIpAndPort.at(1).c_str());
-			strcpy(newConnection.remotePort,remoteIpAndPort.at(1).c_str());
+			newConnection.localPort = (int)strtol(localIpAndPort.at(1).c_str(),NULL,16);
+			newConnection.remotePort = (int)strtol(remoteIpAndPort.at(1).c_str(),NULL,16);
 
 			newLocalIp = atoi(localIpAndPort.at(0).c_str());
 			newRemoteIp = atoi(remoteIpAndPort.at(0).c_str());
@@ -223,7 +296,8 @@ void parseConnection(map<unsigned int,Connection> &connectionMap,ConnectionType 
 			}
 			else
 			{
-
+				strcpy(newConnection.localIp,ipv6IpConvert(newConnection.localIp));
+				strcpy(newConnection.remoteIp,ipv6IpConvert(newConnection.remoteIp));
 			}
 			//
             //newConnection.remoteIp = atoi(tempIpAndPort.at(0).c_str());
