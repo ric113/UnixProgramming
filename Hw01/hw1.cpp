@@ -25,7 +25,7 @@ struct Connection{
 	unsigned int remoteIp;
 	unsigned int remotePort;
 	int pid;
-	string cmdline;
+	char* cmdline;
 	unsigned int inodeIndex;	
 };
 
@@ -36,7 +36,8 @@ void printVector(vector<string>);
 void printConnectionTable(map<unsigned int,Connection>);
 void splitIpAndPort(string,unsigned int&,unsigned int&);
 
-void parseCurrentProcess();
+void parseCurrentProcess(map<unsigned int,Connection>&,map<unsigned int,Connection>&);
+char* getProcessCmdlineInfo(const int);
 
 
 int main(int argc, char const *argv[])
@@ -45,8 +46,10 @@ int main(int argc, char const *argv[])
 	map<unsigned int,Connection> tcpMap;
 	map<unsigned int,Connection> udpMap;
 
-	//parseConnection(tcpMap,0,"/proc/net/tcp");
-	parseCurrentProcess();
+	parseConnection(tcpMap,0,"/proc/net/tcp");
+	parseConnection(udpMap,1,"/proc/net/udp");
+
+	parseCurrentProcess(tcpMap,udpMap);
 	//std::ifstream tcp("/proc/net/tcp");
 	//std::string line;
     	//while(std::getline(tcp, line))
@@ -55,7 +58,7 @@ int main(int argc, char const *argv[])
 	return 0;
 }
 
-void parseCurrentProcess()
+void parseCurrentProcess(map<unsigned int,Connection> &tcpMap,map<unsigned int,Connection> &udpMap)
 {
 	DIR* proc = opendir("/proc");
 	struct dirent* ent;
@@ -76,13 +79,13 @@ void parseCurrentProcess()
 		
 		char buf[100];
 		sprintf(buf,"/proc/%d/fd", tgid);
-		cout << buf << endl;
+		//cout << buf << endl;
 		
 		DIR* inProc = opendir(buf);
 		struct dirent* procEnt;
 		
-		if(inProc == NULL)
-			cout << "error! permission denied!" << endl;
+		if(inProc == NULL);
+			//cout << "error! permission denied!" << endl;
 		else
 		{
 			while(procEnt = readdir(inProc))
@@ -91,21 +94,98 @@ void parseCurrentProcess()
 				strcpy(buf2,buf);
 				strcat(buf2,"/");
 				strcat(buf2,procEnt->d_name);
-				cout << buf2 << endl;
+				//cout << buf2 << endl;
 				
 				//char buf3[10];
 				//readlink(buf2,buf3,sizeof(buf3));
 				//cout << buf3 << endl;
 				struct stat sb;
 				stat(buf2, &sb);
-				if((long)sb.st_ino == 34870)
-					cout << (long)sb.st_ino << endl;						
+				// (long)sb.st_ino
+				 	
+				map<unsigned int,Connection>::iterator it ;
+				
+				it = tcpMap.find((long)sb.st_ino);
+				if(it != tcpMap.end()) /* it's tcp connection */
+				{	
+					cout << "tcp process:" << tgid << endl;
+					(it->second).pid = tgid;
+					(it->second).cmdline = getProcessCmdlineInfo(tgid);
+				}
+				else
+				{
+					it = udpMap.find((long)sb.st_ino);
+					if( it != udpMap.end()) /* it's udp connection */
+					{
+						cout<< "udp process:" << tgid <<endl;
+						(it->second).pid = tgid;
+						(it->second).cmdline = getProcessCmdlineInfo(tgid);		
+					}
+					
+				}
+				
+						
 			}
 		}
 		
 		
 	}
+	printConnectionTable(tcpMap);
+	printConnectionTable(udpMap);
 
+}
+
+char* getProcessCmdlineInfo(const int pid)
+{
+	char* name = (char*)calloc(1024,sizeof(char));
+	char* result;
+	if(name)
+	{
+		sprintf(name, "/proc/%d/cmdline",pid);
+		FILE* f = fopen(name,"r");
+		if(f)
+		{
+			size_t size;
+			size = fread(name, sizeof(char), 1024, f);
+			if(size > 0)
+			{
+				if('\n' == name[size-1])
+					name[size-1] = '\0';
+				
+				/*
+				char* tok;
+				tok = strtok("123\03333\0","\0");
+				//cout << strlen(name) << endl;
+				//cout << tok << endl;
+				//strcpy(result,tok);	
+				//strcat(result," ");
+				while(tok != NULL)
+				{
+					cout << tok << endl;
+					tok = strtok(NULL,'\0');
+					//strcat(result,tok);
+					//strcat(result," ");
+					cout << tok << endl;
+				}
+				*/
+				
+				int i;
+				result = (char*)malloc(size * sizeof(char)); 
+				for(i=0 ; i < size ;i ++)
+				{
+					if(name[i] == '\0')
+						result[i] = ' ';
+					else
+						result[i] = name[i];
+				}
+				result[size-1] = '\0';
+				
+					
+			}
+			fclose(f);
+		}
+	}
+	return result;
 }
 
 void parseConnection(map<unsigned int,Connection> &connectionMap,int connectionType,string path)
@@ -147,7 +227,7 @@ void parseConnection(map<unsigned int,Connection> &connectionMap,int connectionT
 			connectionMap[newConnection.inodeIndex] = newConnection;	
 		}
 	}
-	printConnectionTable(connectionMap);		
+	//printConnectionTable(connectionMap);		
 }
 
 vector<string> &splitString(const string &source, char delim, vector<string> &elmts)
@@ -181,14 +261,14 @@ void printConnectionTable(map<unsigned int,Connection> table)
 	map<unsigned int,Connection>::iterator it = table.begin();
 	while(it != table.end()){
 		
-		cout << (it->second).type << endl;
-		cout << (it->second).localIp << endl;
-		cout << (it->second).localPort << endl;
-		cout << (it->second).remoteIp << endl;
-		cout << (it->second).remotePort << endl;
-		cout << (it->second).pid << endl;
-		cout << (it->second).cmdline << endl;
-		cout << (it->second).inodeIndex << endl;
+		cout << "type:" << (it->second).type << endl;
+		cout << "localIP:" <<(it->second).localIp << endl;
+		cout << "localPort:" <<(it->second).localPort << endl;
+		cout << "remoteIp:"<< (it->second).remoteIp << endl;
+		cout << "remotePort:" <<(it->second).remotePort << endl;
+		cout << "pid:"<<(it->second).pid << endl;
+		cout << "cmdline:"<<(it->second).cmdline << endl;
+		cout << "inode:"<<(it->second).inodeIndex << endl;
 		
 		//cout << (it->second) << endl;
 		it++;
