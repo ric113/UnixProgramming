@@ -155,7 +155,10 @@ void parseCurrentProcess(map<unsigned int,Connection> &tcpMap,map<unsigned int,C
 		struct dirent* procEnt;
 		
 		if(inProc == NULL)
+		{
 			perror("Can't open /proc/[pid]/fd!");
+			exit(errno);
+		}
 		else
 		{
 			while(procEnt = readdir(inProc))
@@ -288,8 +291,8 @@ void parseConnection(map<unsigned int,Connection> &connectionMap,ConnectionType 
 			newConnection.localPort = (int)strtol(localIpAndPort.at(1).c_str(),NULL,16);
 			newConnection.remotePort = (int)strtol(remoteIpAndPort.at(1).c_str(),NULL,16);
 
-			newLocalIp = atoi(localIpAndPort.at(0).c_str());
-			newRemoteIp = atoi(remoteIpAndPort.at(0).c_str());
+			newLocalIp = strtol(localIpAndPort.at(0).c_str(),NULL,16);
+			newRemoteIp = strtol(remoteIpAndPort.at(0).c_str(),NULL,16);
 
 			if(connectionType == TCP || connectionType == UDP)
 			{
