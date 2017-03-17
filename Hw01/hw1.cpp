@@ -39,8 +39,10 @@ struct Connection{
 	ConnectionType type; 			
 	char localIp[INET_ADDRSTRLEN];
 	unsigned int localPort;
+	string localIpAndPort;
 	char remoteIp[INET_ADDRSTRLEN];
 	unsigned int remotePort;
+	string remoteIpAndPort;
 	int pid;
 	char* cmdline;
 	unsigned int inodeIndex;
@@ -52,6 +54,7 @@ vector<string> splitAnySpace(const string&);
 void printVector(vector<string>);
 void printConnectionTable(map<unsigned int,Connection>);
 void splitIpAndPort(string,unsigned int&,unsigned int&);
+string intToString(int);
 
 void parseCurrentProcess(map<unsigned int,Connection>&,map<unsigned int,Connection>&);
 char* getProcessCmdlineInfo(const int);
@@ -71,9 +74,9 @@ int main(int argc, char const *argv[])
 	// else if udp
 
 	parseConnection(tcpMap,TCP,"/proc/net/tcp");
-	//parseConnection(tcpMap,TCPV6,"/proc/net/tcp6");
+	parseConnection(tcpMap,TCPV6,"/proc/net/tcp6");
 	parseConnection(udpMap,UDP,"/proc/net/udp");
-	//parseConnection(udpMap,UDPV6,"/proc/net/udp6");
+	parseConnection(udpMap,UDPV6,"/proc/net/udp6");
 
 	parseCurrentProcess(tcpMap,udpMap);
 
@@ -98,8 +101,10 @@ void printTCPConnection(map<unsigned int,Connection> &tcpMap)
 		else
 			cout << setw(20) << "tcp";
 
-		cout << currentConnt.localIp << ":" << setw(20) << currentConnt.localPort ;
-		cout << currentConnt.remoteIp << ":" << setw(30) << currentConnt.remotePort ;
+		//cout << currentConnt.localIp << ":" << setw(20) << currentConnt.localPort ;
+		//cout << currentConnt.remoteIp << ":" << setw(30) << currentConnt.remotePort ;
+		cout << setw(20) << currentConnt.localIpAndPort ;
+		cout << setw(30) << currentConnt.remoteIpAndPort ;
 		cout << currentConnt.pid << "/" << currentConnt.cmdline << endl ;
 
 		it ++;
@@ -122,9 +127,12 @@ void printUDPConnection(map<unsigned int,Connection> &udpMap)
 		else
 			cout << setw(20) << "udp";
 
-		cout << currentConnt.localIp << ":" << setw(20) << currentConnt.localPort ;
-		cout << currentConnt.remoteIp << ":" << setw(30) << currentConnt.remotePort ;
+		//cout << currentConnt.localIp << ":" << setw(20) << currentConnt.localPort ;
+		//cout << currentConnt.remoteIp << ":" << setw(30) << currentConnt.remotePort ;
+		cout << setw(20) << currentConnt.localIpAndPort ;
+		cout << setw(30) << currentConnt.remoteIpAndPort ;
 		cout << currentConnt.pid << "/" << currentConnt.cmdline << endl ;
+
 
 		it ++;
 	}
@@ -148,7 +156,7 @@ void parseCurrentProcess(map<unsigned int,Connection> &tcpMap,map<unsigned int,C
 		//cout << tgid << endl;
 		
 		char buf[100];
-		sprintf(buf,"/proc/%d/fd", tgid);
+		sprintf(buf,"/proc/%ld/fd", tgid);
 		//cout << buf << endl;
 		
 		DIR* inProc = opendir(buf);
@@ -279,6 +287,7 @@ void parseConnection(map<unsigned int,Connection> &connectionMap,ConnectionType 
 			
 			Connection newConnection;
 			unsigned int newLocalIp,newRemoteIp;
+			string newLocalPort,newRemotePort;
 			vector<string> localIpAndPort,remoteIpAndPort;		
 	
 			newConnection.type = connectionType;
@@ -288,8 +297,11 @@ void parseConnection(map<unsigned int,Connection> &connectionMap,ConnectionType 
 			remoteIpAndPort = splitString(tempVector.at(2), ':', remoteIpAndPort);
 
 
-			newConnection.localPort = (int)strtol(localIpAndPort.at(1).c_str(),NULL,16);
-			newConnection.remotePort = (int)strtol(remoteIpAndPort.at(1).c_str(),NULL,16);
+			//newConnection.localPort = (int)strtol(localIpAndPort.at(1).c_str(),NULL,16);
+			//newConnection.remotePort = (int)strtol(remoteIpAndPort.at(1).c_str(),NULL,16);
+			
+			newLocalPort = ((int)strtol(localIpAndPort.at(1).c_str(),NULL,16) == 0)? "*" : string(intToString((int)strtol(localIpAndPort.at(1).c_str(),NULL,16)));
+			newRemotePort = ((int)strtol(remoteIpAndPort.at(1).c_str(),NULL,16) == 0)? "*" : string(intToString((int)strtol(localIpAndPort.at(1).c_str(),NULL,16)));
 
 			newLocalIp = strtol(localIpAndPort.at(0).c_str(),NULL,16);
 			newRemoteIp = strtol(remoteIpAndPort.at(0).c_str(),NULL,16);
@@ -305,6 +317,10 @@ void parseConnection(map<unsigned int,Connection> &connectionMap,ConnectionType 
 				strcpy(newConnection.localIp,ipv6IpConvert(localIpAndPort.at(0)));
 				strcpy(newConnection.remoteIp,ipv6IpConvert(remoteIpAndPort.at(0)));
 			}
+
+			newConnection.localIpAndPort = string(newConnection.localIp) + ":" + newLocalPort ;
+			newConnection.remoteIpAndPort = string(newConnection.remoteIp) + ":" +  newRemotePort ;
+
 			//
             //newConnection.remoteIp = atoi(tempIpAndPort.at(0).c_str());
             
@@ -331,6 +347,12 @@ vector<string> splitAnySpace(const string &source)
 	return vec;
 }
 
+string intToString(int i)
+{
+	stringstream ss;
+	ss << i;
+	return ss.str();
+}
 
 
 void printVector(vector<string> vec)
