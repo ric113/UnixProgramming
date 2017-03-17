@@ -60,9 +60,10 @@ string intToString(int);
 void parseCurrentProcess(map<unsigned int,Connection>&,map<unsigned int,Connection>&);
 char* getProcessCmdlineInfo(const int);
 char* ipv6IpConvert(string);
+bool passFilter(string,vector<string>);
 
-void printTCPConnection(map<unsigned int,Connection>&);
-void printUDPConnection(map<unsigned int,Connection>&);
+void printTCPConnection(map<unsigned int,Connection>&,bool,vector<string>&);
+void printUDPConnection(map<unsigned int,Connection>&,bool,vector<string>&);
 
 int main(int argc, char **argv)
 {
@@ -75,7 +76,7 @@ int main(int argc, char **argv)
 	};
 
 	bool printBoth = true , useTcpArg = false , useUdpArg = false , hasfilterString = false ;
-	vector<string> filterString ;
+	vector<string> filterStrings ;
 
 	int c;  
     while((c = getopt_long(argc, argv, "tu", long_options, NULL)) != -1)  
@@ -101,10 +102,10 @@ int main(int argc, char **argv)
 
     int i;
     for(i = 0; i < argc; i++) {
-     	filterString.push_back(string(argv[i]));
+     	filterStrings.push_back(string(argv[i]));
 	}
 
-	if(filterString.size() > 0)
+	if(filterStrings.size() > 0)
 		hasfilterString = true;
 
 	map<unsigned int,Connection> tcpMap;
@@ -119,21 +120,21 @@ int main(int argc, char **argv)
 
 	if(printBoth)
 	{
-		printTCPConnection(tcpMap);
-		printUDPConnection(udpMap);
+		printTCPConnection(tcpMap,hasfilterString,filterStrings);
+		printUDPConnection(udpMap,hasfilterString,filterStrings);
 	}
 	else
 	{
 		if(useTcpArg)
-			printTCPConnection(tcpMap);
+			printTCPConnection(tcpMap,hasfilterString,filterStrings);
 		if(useUdpArg)
-			printUDPConnection(udpMap);
+			printUDPConnection(udpMap,hasfilterString,filterStrings);
 	}
 	
 	return 0;
 }
 
-void printTCPConnection(map<unsigned int,Connection> &tcpMap)
+void printTCPConnection(map<unsigned int,Connection> &tcpMap,bool hasfilterString,vector<string> &filterStrings)
 {
 	cout << "List of TCP connecions:" << endl;
 	cout << left << setw(20) << "Proto" << left << setw(20) << "Local Address" << left << setw(30) << "Foreign Address" << left << setw(30) << "PID/Program name and arguments" << endl;
@@ -150,20 +151,17 @@ void printTCPConnection(map<unsigned int,Connection> &tcpMap)
 		else
 			typeStr = "tcp";
 
-		//cout << currentConnt.localIp << ":" << setw(20) << currentConnt.localPort ;
-		//cout << currentConnt.remoteIp << ":" << setw(30) << currentConnt.remotePort ;
-		//cout << setw(23) << currentConnt.localIpAndPort ;
-		//cout << setw(33) << currentConnt.remoteIpAndPort ;
-		//cout << currentConnt.pid << "/" << currentConnt.cmdline << endl ;
-
 		sprintf(buf,"%-20s%-20s%-30s%d/%s\n",typeStr.c_str(),currentConnt.localIpAndPort.c_str(),currentConnt.remoteIpAndPort.c_str(),currentConnt.pid,currentConnt.cmdline);
-
+		
+		if(passFilter(string(buf),filterStrings))
+			cout << buf ;
+		
 		it ++;
 	}
 	cout << endl ;
 }
 
-void printUDPConnection(map<unsigned int,Connection> &udpMap)
+void printUDPConnection(map<unsigned int,Connection> &udpMap,bool hasfilterString,vector<string> &filterStrings)
 {
 	cout << "List of UDP connecions:" << endl;
 	cout << left << setw(20) << "Proto" << left << setw(20) << "Local Address" << left << setw(30) << "Foreign Address" << left << setw(30) << "PID/Program name and arguments" << endl;
@@ -180,17 +178,25 @@ void printUDPConnection(map<unsigned int,Connection> &udpMap)
 		else
 			typeStr = "udp";
 
-		//cout << currentConnt.localIp << ":" << setw(20) << currentConnt.localPort ;
-		//cout << currentConnt.remoteIp << ":" << setw(30) << currentConnt.remotePort ;
-		//cout << setw(23) << currentConnt.localIpAndPort ;
-		//cout << setw(33) << currentConnt.remoteIpAndPort ;
-		//cout << currentConnt.pid << "/" << currentConnt.cmdline << endl ;
-
 		sprintf(buf,"%-20s%-20s%-30s%d/%s\n",typeStr.c_str(),currentConnt.localIpAndPort.c_str(),currentConnt.remoteIpAndPort.c_str(),currentConnt.pid,currentConnt.cmdline);
-
+		
+		if(passFilter(string(buf),filterStrings))
+			cout << buf ;
 
 		it ++;
 	}
+}
+
+bool passFilter(string target,vector<string> filterStrings)
+{
+	vector<string>::iterator it = filterStrings.begin();
+	while(it != filterStrings.end())
+	{
+		if(target.find(*it) != string::npos)
+			return false;
+		it ++;
+	}
+	return true;
 }
 
 void parseCurrentProcess(map<unsigned int,Connection> &tcpMap,map<unsigned int,Connection> &udpMap)
