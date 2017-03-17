@@ -27,7 +27,6 @@
 using namespace std;
 
 #define BUF_LENGTH 1024
-#define PORT_LENGTH 50 
 
 enum ConnectionType
 {
@@ -137,23 +136,27 @@ int main(int argc, char **argv)
 void printTCPConnection(map<unsigned int,Connection> &tcpMap)
 {
 	cout << "List of TCP connecions:" << endl;
-	cout << left << setw(20) << "Proto" << left << setw(23) << "Local Address" << left << setw(33) << "Foreign Address" << left << setw(30) << "PID/Program name and arguments" << endl;
+	cout << left << setw(20) << "Proto" << left << setw(20) << "Local Address" << left << setw(30) << "Foreign Address" << left << setw(30) << "PID/Program name and arguments" << endl;
 
+	char buf[BUF_LENGTH];
+	string typeStr;
 	map<unsigned int,Connection>::iterator it = tcpMap.begin();
 	while(it != tcpMap.end())
 	{
 		Connection currentConnt = it->second;
 
 		if(currentConnt.type == TCPV6)
-			cout << setw(20) << "tcp6";
+			typeStr = "tcp6";
 		else
-			cout << setw(20) << "tcp";
+			typeStr = "tcp";
 
 		//cout << currentConnt.localIp << ":" << setw(20) << currentConnt.localPort ;
 		//cout << currentConnt.remoteIp << ":" << setw(30) << currentConnt.remotePort ;
-		cout << setw(23) << currentConnt.localIpAndPort ;
-		cout << setw(33) << currentConnt.remoteIpAndPort ;
-		cout << currentConnt.pid << "/" << currentConnt.cmdline << endl ;
+		//cout << setw(23) << currentConnt.localIpAndPort ;
+		//cout << setw(33) << currentConnt.remoteIpAndPort ;
+		//cout << currentConnt.pid << "/" << currentConnt.cmdline << endl ;
+
+		sprintf(buf,"%-20s%-20s%-30s%d/%s\n",typeStr.c_str(),currentConnt.localIpAndPort.c_str(),currentConnt.remoteIpAndPort.c_str(),currentConnt.pid,currentConnt.cmdline);
 
 		it ++;
 	}
@@ -163,24 +166,27 @@ void printTCPConnection(map<unsigned int,Connection> &tcpMap)
 void printUDPConnection(map<unsigned int,Connection> &udpMap)
 {
 	cout << "List of UDP connecions:" << endl;
-	cout << left << setw(20) << "Proto" << left << setw(23) << "Local Address" << left << setw(33) << "Foreign Address" << left << setw(30) << "PID/Program name and arguments" << endl;
+	cout << left << setw(20) << "Proto" << left << setw(20) << "Local Address" << left << setw(30) << "Foreign Address" << left << setw(30) << "PID/Program name and arguments" << endl;
 	
-
+	char buf[BUF_LENGTH];
+	string typeStr;
 	map<unsigned int,Connection>::iterator it = udpMap.begin();
 	while(it != udpMap.end())
 	{
 		Connection currentConnt = it->second;
 
 		if(currentConnt.type == UDPV6)
-			cout << setw(20) << "udp6";
+			typeStr = "udp6";
 		else
-			cout << setw(20) << "udp";
+			typeStr = "udp";
 
 		//cout << currentConnt.localIp << ":" << setw(20) << currentConnt.localPort ;
 		//cout << currentConnt.remoteIp << ":" << setw(30) << currentConnt.remotePort ;
-		cout << setw(23) << currentConnt.localIpAndPort ;
-		cout << setw(33) << currentConnt.remoteIpAndPort ;
-		cout << currentConnt.pid << "/" << currentConnt.cmdline << endl ;
+		//cout << setw(23) << currentConnt.localIpAndPort ;
+		//cout << setw(33) << currentConnt.remoteIpAndPort ;
+		//cout << currentConnt.pid << "/" << currentConnt.cmdline << endl ;
+
+		sprintf(buf,"%-20s%-20s%-30s%d/%s\n",typeStr.c_str(),currentConnt.localIpAndPort.c_str(),currentConnt.remoteIpAndPort.c_str(),currentConnt.pid,currentConnt.cmdline);
 
 
 		it ++;
@@ -254,8 +260,9 @@ void parseCurrentProcess(map<unsigned int,Connection> &tcpMap,map<unsigned int,C
 			}
 		}
 		
-		
+		closedir(inProc);
 	}
+	closedir(proc);
 
 }
 
