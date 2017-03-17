@@ -21,6 +21,8 @@
 
 #include <iomanip>
 
+#include <getopt.h>
+
 
 using namespace std;
 
@@ -63,15 +65,51 @@ char* ipv6IpConvert(string);
 void printTCPConnection(map<unsigned int,Connection>&);
 void printUDPConnection(map<unsigned int,Connection>&);
 
-int main(int argc, char const *argv[])
+int main(int argc, char **argv)
 {
 	/* code */
+
+	struct option long_options[] = {
+    	{"tcp",0,NULL,'t'},
+    	{"udp",0,NULL,'u'},
+    	{0,0,0,0}
+	};
+
+	bool printBoth = true , useTcpArg = false , useUdpArg = false , hasfilterString = false ;
+	vector<string> filterString ;
+
+	int c;  
+    while((c = getopt_long(argc, argv, "tu", long_options, NULL)) != -1)  
+    {  
+        switch (c)  
+        {  
+        case 't':  
+        	useTcpArg = true;
+        	printBoth = false;
+            break;  
+         case 'u':  
+            useUdpArg = true;
+            printBoth = false;
+            break;  
+        default:
+        	cout << "Usage : sudo ./hw1 [-t|--tcp] [-u|--udp] [option]" << endl;
+         	return 0;
+        }  
+    }  
+
+     argc -= optind;
+     argv += optind;
+
+    int i;
+    for(i = 0; i < argc; i++) {
+     	filterString.push_back(string(argv[i]));
+	}
+
+	if(filterString.size() > 0)
+		hasfilterString = true;
+
 	map<unsigned int,Connection> tcpMap;
 	map<unsigned int,Connection> udpMap;
-
-	// if all
-	// else if tcp
-	// else if udp
 
 	parseConnection(tcpMap,TCP,"/proc/net/tcp");
 	parseConnection(tcpMap,TCPV6,"/proc/net/tcp6");
@@ -80,8 +118,18 @@ int main(int argc, char const *argv[])
 
 	parseCurrentProcess(tcpMap,udpMap);
 
-	printTCPConnection(tcpMap);
-	printUDPConnection(udpMap);
+	if(printBoth)
+	{
+		printTCPConnection(tcpMap);
+		printUDPConnection(udpMap);
+	}
+	else
+	{
+		if(useTcpArg)
+			printTCPConnection(tcpMap);
+		if(useUdpArg)
+			printUDPConnection(udpMap);
+	}
 	
 	return 0;
 }
@@ -103,12 +151,13 @@ void printTCPConnection(map<unsigned int,Connection> &tcpMap)
 
 		//cout << currentConnt.localIp << ":" << setw(20) << currentConnt.localPort ;
 		//cout << currentConnt.remoteIp << ":" << setw(30) << currentConnt.remotePort ;
-		cout << setw(20) << currentConnt.localIpAndPort ;
-		cout << setw(30) << currentConnt.remoteIpAndPort ;
+		cout << setw(23) << currentConnt.localIpAndPort ;
+		cout << setw(33) << currentConnt.remoteIpAndPort ;
 		cout << currentConnt.pid << "/" << currentConnt.cmdline << endl ;
 
 		it ++;
 	}
+	cout << endl ;
 }
 
 void printUDPConnection(map<unsigned int,Connection> &udpMap)
@@ -129,8 +178,8 @@ void printUDPConnection(map<unsigned int,Connection> &udpMap)
 
 		//cout << currentConnt.localIp << ":" << setw(20) << currentConnt.localPort ;
 		//cout << currentConnt.remoteIp << ":" << setw(30) << currentConnt.remotePort ;
-		cout << setw(20) << currentConnt.localIpAndPort ;
-		cout << setw(30) << currentConnt.remoteIpAndPort ;
+		cout << setw(23) << currentConnt.localIpAndPort ;
+		cout << setw(33) << currentConnt.remoteIpAndPort ;
 		cout << currentConnt.pid << "/" << currentConnt.cmdline << endl ;
 
 
@@ -207,8 +256,6 @@ void parseCurrentProcess(map<unsigned int,Connection> &tcpMap,map<unsigned int,C
 		
 		
 	}
-	printConnectionTable(tcpMap);
-	printConnectionTable(udpMap);
 
 }
 
