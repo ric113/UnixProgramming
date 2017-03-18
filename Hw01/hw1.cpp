@@ -45,7 +45,7 @@ struct Connection{
 	unsigned int remotePort;
 	string remoteIpAndPort;
 	int pid;
-	char* cmdline;
+	char cmdline[BUF_LENGTH];
 	unsigned int inodeIndex;
 };
 
@@ -67,7 +67,6 @@ void printUDPConnection(map<unsigned int,Connection>&,bool,vector<string>&);
 
 int main(int argc, char **argv)
 {
-	/* code */
 
 	struct option long_options[] = {
     	{"tcp",0,NULL,'t'},
@@ -75,7 +74,11 @@ int main(int argc, char **argv)
     	{0,0,0,0}
 	};
 
-	bool printBoth = true , useTcpArg = false , useUdpArg = false , hasfilterString = false ;
+	bool printBoth = true , 
+		 useTcpArg = false , 
+		 useUdpArg = false , 
+		 hasfilterString = false ;
+	
 	vector<string> filterStrings ;
 
 	int c;  
@@ -100,16 +103,16 @@ int main(int argc, char **argv)
      argc -= optind;
      argv += optind;
 
+    /* 取得filter string, 且可以有多個 */
     int i;
     for(i = 0; i < argc; i++) {
      	filterStrings.push_back(string(argv[i]));
 	}
-
 	if(filterStrings.size() > 0)
 		hasfilterString = true;
 
-	map<unsigned int,Connection> tcpMap;
-	map<unsigned int,Connection> udpMap;
+	map<unsigned int,Connection> tcpMap;	/* 存放所有tcp連線的Map, Key : inode number / Value : Connection Info. */
+	map<unsigned int,Connection> udpMap;	/* 存放所有udp連線的Map, Key : inode number / Value : Connection Info. */
 
 	parseConnection(tcpMap,TCP,"/proc/net/tcp");
 	parseConnection(tcpMap,TCPV6,"/proc/net/tcp6");
@@ -142,6 +145,7 @@ void printTCPConnection(map<unsigned int,Connection> &tcpMap,bool hasfilterStrin
 	char buf[BUF_LENGTH];
 	string typeStr;
 	map<unsigned int,Connection>::iterator it = tcpMap.begin();
+	
 	while(it != tcpMap.end())
 	{
 		Connection currentConnt = it->second;
@@ -153,8 +157,13 @@ void printTCPConnection(map<unsigned int,Connection> &tcpMap,bool hasfilterStrin
 
 		sprintf(buf,"%-20s%-20s%-30s%d/%s\n",typeStr.c_str(),currentConnt.localIpAndPort.c_str(),currentConnt.remoteIpAndPort.c_str(),currentConnt.pid,currentConnt.cmdline);
 		
-		if(passFilter(string(buf),filterStrings))
-			cout << buf ;
+		if(hasfilterString)
+		{
+			if(passFilter(string(buf),filterStrings))
+				cout << buf;
+		}  
+		else
+			cout << buf; 
 		
 		it ++;
 	}
@@ -169,6 +178,7 @@ void printUDPConnection(map<unsigned int,Connection> &udpMap,bool hasfilterStrin
 	char buf[BUF_LENGTH];
 	string typeStr;
 	map<unsigned int,Connection>::iterator it = udpMap.begin();
+	
 	while(it != udpMap.end())
 	{
 		Connection currentConnt = it->second;
@@ -180,50 +190,55 @@ void printUDPConnection(map<unsigned int,Connection> &udpMap,bool hasfilterStrin
 
 		sprintf(buf,"%-20s%-20s%-30s%d/%s\n",typeStr.c_str(),currentConnt.localIpAndPort.c_str(),currentConnt.remoteIpAndPort.c_str(),currentConnt.pid,currentConnt.cmdline);
 		
-		if(passFilter(string(buf),filterStrings))
-			cout << buf ;
+		if(hasfilterString)
+		{
+			if(passFilter(string(buf),filterStrings))
+				cout << buf;
+		}  
+		else
+			cout << buf;
 
 		it ++;
 	}
 }
 
+/* 若有filter String, 判斷該行是否符合filter */
 bool passFilter(string target,vector<string> filterStrings)
 {
 	vector<string>::iterator it = filterStrings.begin();
 	while(it != filterStrings.end())
 	{
 		if(target.find(*it) != string::npos)
-			return false;
+			return true;
 		it ++;
 	}
-	return true;
+	return false;
 }
 
+/* Parse系統中目前正在Run的所有Process中的fd [ /proc/[pid]/fd ], 來得知哪個Connection配哪個Process */
 void parseCurrentProcess(map<unsigned int,Connection> &tcpMap,map<unsigned int,Connection> &udpMap)
 {
 	DIR* proc = opendir("/proc");
 	struct dirent* ent;
-	long tgid;
+	long tgid;	/* 存pid */
 
 	if(proc == NULL)
 		perror("Can't open /proc!");
 
 	while(ent = readdir(proc))
 	{
-		if(!isdigit(*ent->d_name))
+		if(!isdigit(*ent->d_name))	/* 若不是number(pid), 換下一個entry讀 */
 			continue;
-		tgid = strtol(ent->d_name,NULL,10);
-		//print_status(tgid);
-		//cout << tgid << endl;
 		
+		tgid = strtol(ent->d_name,NULL,10);
+
 		char buf[100];
 		sprintf(buf,"/proc/%ld/fd", tgid);
-		//cout << buf << endl;
 		
 		DIR* inProc = opendir(buf);
 		struct dirent* procEnt;
 		
-		if(inProc == NULL)
+		if(inProc == NULL)		/* permission denied時 */
 		{
 			perror("Can't open /proc/[pid]/fd!");
 			exit(errno);
@@ -233,43 +248,43 @@ void parseCurrentProcess(map<unsigned int,Connection> &tcpMap,map<unsigned int,C
 			while(procEnt = readdir(inProc))
 			{
 				char buf2[100];
-				strcpy(buf2,buf);
-				strcat(buf2,"/");
-				strcat(buf2,procEnt->d_name);
-				//cout << buf2 << endl;
+				sprintf(buf2,"/proc/%ld/fd/%s",tgid,procEnt->d_name);
 				
+				//strcpy(buf2,buf);
+				//strcat(buf2,"/");
+				//strcat(buf2,procEnt->d_name);
 				
 				struct stat sb;
 				stat(buf2, &sb);
 			
-				 	
 				map<unsigned int,Connection>::iterator it ;
 				
-				it = tcpMap.find((long)sb.st_ino);
+				it = tcpMap.find((long)sb.st_ino);	/* 以該fd的inode(stat中的'ino'屬性)去search tcp/udp Map */
 				if(it != tcpMap.end()) /* it's tcp connection */
 				{	
 					(it->second).pid = tgid;
-					(it->second).cmdline = getProcessCmdlineInfo(tgid);
+
+					char *cmdInfo = getProcessCmdlineInfo(tgid);
+					strcpy((it->second).cmdline,cmdInfo);
+					free(cmdInfo);
 				}
-				else
+				else	/* it's not tcp connection, search udp Map */
 				{
 					it = udpMap.find((long)sb.st_ino);
 					if( it != udpMap.end()) /* it's udp connection */
 					{
 						(it->second).pid = tgid;
-						(it->second).cmdline = getProcessCmdlineInfo(tgid);		
+
+						char *cmdInfo = getProcessCmdlineInfo(tgid);
+						strcpy((it->second).cmdline,cmdInfo);
+						free(cmdInfo);		
 					}
-					
 				}
-				
-						
 			}
 		}
-		
 		closedir(inProc);
 	}
 	closedir(proc);
-
 }
 
 char* ipv6IpConvert(string ipHex)
@@ -277,6 +292,7 @@ char* ipv6IpConvert(string ipHex)
 	struct in6_addr tmp_ip;
 	char *ipStr = (char*)malloc(128 * sizeof(char)) ;
 
+	
 	if (sscanf(ipHex.c_str(),
 		"%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx",
 		&tmp_ip.s6_addr[3], &tmp_ip.s6_addr[2], &tmp_ip.s6_addr[1], &tmp_ip.s6_addr[0],
@@ -286,13 +302,15 @@ char* ipv6IpConvert(string ipHex)
 	{
 		inet_ntop(AF_INET6, &tmp_ip, ipStr, sizeof(ipStr));
 	}
-
+	
+	
 	return ipStr;
 }
 
+/* 以Pid取得各Process的Cmdline [ /proc/[pid]/cmdline ]*/
 char* getProcessCmdlineInfo(const int pid)
 {
-	char* name = (char*)calloc(1024,sizeof(char));
+	char* name = (char*)calloc(BUF_LENGTH,sizeof(char));	/* 與malloc相同,只是空間資料已經初始化為0 */
 	char* result;
 	if(name)
 	{
@@ -301,12 +319,13 @@ char* getProcessCmdlineInfo(const int pid)
 		if(f)
 		{
 			size_t size;
-			size = fread(name, sizeof(char), 1024, f);
+			size = fread(name, sizeof(char), BUF_LENGTH, f);
 			if(size > 0)
 			{
 				if('\n' == name[size-1])
 					name[size-1] = '\0';
 				
+				/* 處理指令和arg.間中間的'\0' */
 				int i;
 				result = (char*)malloc(size * sizeof(char)); 
 				for(i=0 ; i < size ;i ++)
@@ -317,8 +336,7 @@ char* getProcessCmdlineInfo(const int pid)
 						result[i] = name[i];
 				}
 				result[size-1] = '\0';
-				
-					
+			
 			}
 			fclose(f);
 		}
@@ -327,39 +345,37 @@ char* getProcessCmdlineInfo(const int pid)
 	return result;
 }
 
+/* Parse目前所有正在進行的TCP/UDP connection(In /proc/net/[tcp/tcp6/udp/udp6]), 並存入Table中 */
 void parseConnection(map<unsigned int,Connection> &connectionMap,ConnectionType connectionType,string path)
 {
 	bool isFirstLine = true;
 	ifstream connection(path.c_str());
 	string line;
-	vector<string> tempVector;
+	vector<string> tempVector;		/* 存放每行一空格來分割的所有token */
 
 	while(getline(connection, line))
 	{
-		if(isFirstLine)
+		if(isFirstLine)				/* Skip第一行 */
 		{
-			isFirstLine = false;
+			isFirstLine = false;	
 		}
 		else
 		{
 			tempVector = splitAnySpace(line);
-			//printVector(tempVector);
 			
 			Connection newConnection;
-			unsigned int newLocalIp,newRemoteIp;
+			unsigned int newLocalIp,newRemoteIp;	/* 為了給inet_ntop()使用 */
 			string newLocalPort,newRemotePort;
-			vector<string> localIpAndPort,remoteIpAndPort;		
+			vector<string> localIpAndPort,remoteIpAndPort;	/* 存放以":"來分割的IP以及Port token */	
+
 	
 			newConnection.type = connectionType;
-			newConnection.inodeIndex = atoi(tempVector.at(9).c_str());
+			newConnection.inodeIndex = atoi(tempVector.at(9).c_str());	/* 'inode' 屬性是在第九個column */
 			
-			localIpAndPort = splitString(tempVector.at(1), ':', localIpAndPort);
-			remoteIpAndPort = splitString(tempVector.at(2), ':', remoteIpAndPort);
+			localIpAndPort = splitString(tempVector.at(1), ':', localIpAndPort);	/* 'localIp和Port' 屬性是在第一個column */
+			remoteIpAndPort = splitString(tempVector.at(2), ':', remoteIpAndPort); 	/* 'remoteIp和Port' 屬性是在第二個column */
 
-
-			//newConnection.localPort = (int)strtol(localIpAndPort.at(1).c_str(),NULL,16);
-			//newConnection.remotePort = (int)strtol(remoteIpAndPort.at(1).c_str(),NULL,16);
-			
+			/* if port# is 0, 以'*'表示 */
 			newLocalPort = ((int)strtol(localIpAndPort.at(1).c_str(),NULL,16) == 0)? "*" : string(intToString((int)strtol(localIpAndPort.at(1).c_str(),NULL,16)));
 			newRemotePort = ((int)strtol(remoteIpAndPort.at(1).c_str(),NULL,16) == 0)? "*" : string(intToString((int)strtol(localIpAndPort.at(1).c_str(),NULL,16)));
 
@@ -373,22 +389,22 @@ void parseConnection(map<unsigned int,Connection> &connectionMap,ConnectionType 
 			}
 			else
 			{
-				
-				strcpy(newConnection.localIp,ipv6IpConvert(localIpAndPort.at(0)));
-				strcpy(newConnection.remoteIp,ipv6IpConvert(remoteIpAndPort.at(0)));
+				/* ipv6轉換需要經過特殊處理 */
+				char* ipv6ConvertedLocalIp = ipv6IpConvert(localIpAndPort.at(0));
+				char* ipv6ConvertedRemoteIp = ipv6IpConvert(remoteIpAndPort.at(0));
+				strcpy(newConnection.localIp,ipv6ConvertedLocalIp);
+				strcpy(newConnection.remoteIp,ipv6ConvertedRemoteIp);
+				free(ipv6ConvertedLocalIp);
+				free(ipv6ConvertedRemoteIp);
 			}
 
+			/* 將Ip以及Port串回 [ip:port] 字串形式,存入Connection info */
 			newConnection.localIpAndPort = string(newConnection.localIp) + ":" + newLocalPort ;
 			newConnection.remoteIpAndPort = string(newConnection.remoteIp) + ":" +  newRemotePort ;
-
-			//
-            //newConnection.remoteIp = atoi(tempIpAndPort.at(0).c_str());
             
-
-			connectionMap[newConnection.inodeIndex] = newConnection;	
+			connectionMap[newConnection.inodeIndex] = newConnection;	/* 以inode為key,存入Map */
 		}
-	}
-	//printConnectionTable(connectionMap);		
+	}		
 }
 
 vector<string> &splitString(const string &source, char delim, vector<string> &elmts)
@@ -439,7 +455,6 @@ void printConnectionTable(map<unsigned int,Connection> table)
 		cout << "cmdline:"<<(it->second).cmdline << endl;
 		cout << "inode:"<<(it->second).inodeIndex << endl;
 		
-		//cout << (it->second) << endl;
 		it++;
 	}
 }
