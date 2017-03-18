@@ -1,0 +1,45 @@
+Map -
+	可以存 Key:Value的Table .
+	ref : http://mropengate.blogspot.tw/2015/12/cc-map-stl.html
+
+取得程式參數(短參數 e.g. -v -la -al,或是長參數 e.g. --tcp , --udp) -
+	getopt_long :
+		ref : http://blog.csdn.net/ast_224/article/details/3861625
+
+以stream形式讀file -
+	ifstream : 
+		ref : http://kwcheng0119.pixnet.net/blog/post/43828154-cpp---ifstream-(read-file)---%E9%96%8B%E6%AA%94-%26-%E8%AE%80%E6%AA%94
+
+開啟某個目錄/探索該目錄所有檔案/關閉目錄 -
+	...
+	DIR* dir = opendir("/proc");	/* 開啟"/proc"這個目錄 */
+	struct dirent* ent;				/* 紀錄目錄中entry的info. */
+	while(end = readdir(dir))		/* 探訪所有該目錄底下的檔案/目錄 */
+	{
+		...
+	}
+	closedir(dir);
+	...
+
+long int strtol([target String],NULL,[base]) :
+	將各形式字串轉成以base為基底的long int
+	ref : http://blog.xuite.net/tzeng015/twblog/113272225-strtol%EF%BC%88%E5%B0%87%E5%AD%97%E7%AC%A6%E4%B8%B2%E8%BD%89%E6%8F%9B%E6%88%90%E9%95%B7%E6%95%B4%E5%9E%8B%E6%95%B8%EF%BC%89
+
+malloc()/calloc()/realloc()/free() -
+	ref : https://openhome.cc/Gossip/CGossip/MallocFree.html
+
+sscanf() -
+	ref : http://pisces.ck.tp.edu.tw/~peng/index.php?action=showfile&file=fa6dc86f5b337e2c7b8fdc11d1c32b41990d2f08b
+	formatting -
+		ref : http://edisonx.pixnet.net/blog/post/35305668-%5Bc%5D-printf-%E5%BC%95%E6%95%B8%E8%AA%AA%E6%98%8E 
+
+ipv6 -
+	* 有128個bit = 16 Bytes.
+	* 資料結構 : 
+		struct in6_addr {
+               unsigned char   s6_addr[16];   /* IPv6 address , 1 char = 1 byte  */
+        };
+    	* 由http://lxr.free-electrons.com/source/net/ipv6/tcp_ipv6.c#L1779知道,/proc/net/[tcp6/udp6]中,localIp和remoteIp的排列格式 .
+    	* 先將各in6_addr.s6_addr[16]依上面的格式存入 .
+	* inet_ntop(AFINET6,&in6_addr.s6_addr,buf,sizeof(buf))
+
