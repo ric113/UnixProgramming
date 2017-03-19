@@ -160,7 +160,7 @@ void parseConnection(map<unsigned int,Connection> &connectionMap,ConnectionType 
 
 			/* if port# is 0, 以'*'表示 */
 			newLocalPort = ((int)strtol(localIpAndPort.at(1).c_str(),NULL,16) == 0)? "*" : string(intToString((int)strtol(localIpAndPort.at(1).c_str(),NULL,16)));
-			newRemotePort = ((int)strtol(remoteIpAndPort.at(1).c_str(),NULL,16) == 0)? "*" : string(intToString((int)strtol(localIpAndPort.at(1).c_str(),NULL,16)));
+			newRemotePort = ((int)strtol(remoteIpAndPort.at(1).c_str(),NULL,16) == 0)? "*" : string(intToString((int)strtol(remoteIpAndPort.at(1).c_str(),NULL,16)));
 
 			newLocalIp = strtol(localIpAndPort.at(0).c_str(),NULL,16);
 			newRemoteIp = strtol(remoteIpAndPort.at(0).c_str(),NULL,16);
@@ -228,12 +228,22 @@ void parseCurrentProcess(map<unsigned int,Connection> &tcpMap,map<unsigned int,C
 				char buf2[100];
 				sprintf(buf2,"/proc/%ld/fd/%s",tgid,procEnt->d_name);
 				
-				struct stat sb;
-				stat(buf2, &sb);
+				//struct stat sb;
+				//stat(buf2, &sb);
+				
+				char linkname[BUF_LENGTH] ;
+				int linkLen = readlink(buf2,linkname,sizeof(linkname));
+				if(linkLen < 0) 
+					continue;
+				
+				int inode;
+				if(sscanf(linkname,"socket:[%d]",&inode) != 1) 
+					continue;
 			
 				map<unsigned int,Connection>::iterator it ;
 				
-				it = tcpMap.find((long)sb.st_ino);	/* 以該fd的inode(stat中的'ino'屬性)去search tcp/udp Map */
+				it = tcpMap.find(inode);	/* 以該fd的inode(stat中的'ino'屬性)去search tcp/udp Map */
+				
 				if(it != tcpMap.end()) /* it's tcp connection */
 				{	
 					(it->second).pid = tgid;
@@ -244,7 +254,7 @@ void parseCurrentProcess(map<unsigned int,Connection> &tcpMap,map<unsigned int,C
 				}
 				else	/* it's not tcp connection, search udp Map */
 				{
-					it = udpMap.find((long)sb.st_ino);
+					it = udpMap.find(inode);
 					if( it != udpMap.end()) /* it's udp connection */
 					{
 						(it->second).pid = tgid;
