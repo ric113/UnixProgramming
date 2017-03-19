@@ -185,7 +185,9 @@ void parseConnection(map<unsigned int,Connection> &connectionMap,ConnectionType 
 			newConnection.localIpAndPort = string(newConnection.localIp) + ":" + newLocalPort ;
 			newConnection.remoteIpAndPort = string(newConnection.remoteIp) + ":" +  newRemotePort ;
             
-			connectionMap[newConnection.inodeIndex] = newConnection;	/* 以inode為key,存入Map */
+			/* Inode = 0 ? */
+			if( newConnection.inodeIndex !=0 )
+				connectionMap[newConnection.inodeIndex] = newConnection;	/* 以inode為key,存入Map */
 		}
 	}		
 }
