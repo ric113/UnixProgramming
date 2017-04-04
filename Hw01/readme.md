@@ -76,9 +76,9 @@ udp6  :::18161                :::*                    2559/dhcpd
 ```
 <br>
 #### Note about this homework
+
 ###### Map 
-可以存 Key:Value的Table . <br>
-[Reference](http://mropengate.blogspot.tw/2015/12/cc-map-stl.html)
+可以存 Key:Value的Table : [Reference](http://mropengate.blogspot.tw/2015/12/cc-map-stl.html)
 
 ###### 取得程式參數(短參數 e.g. -v -la -al,或是長參數 e.g. --tcp , --udp) 
 getopt_long : [Reference](http://blog.csdn.net/ast_224/article/details/3861625)
