@@ -3,11 +3,20 @@
 #include <sys/types.h>
 #include <string.h>
 #include <dlfcn.h>
+#include <dirent.h>
 
 FILE* logOutput;
 
 static uid_t (*origin_getuid)(void) = NULL;
 static ssize_t (*origin_write)(int fd,const void *buf,size_t count) = NULL;
+static int (*origin_closedir)(DIR *dirp) = NULL;
+static DIR* (*origin_fdopendir)(int fd) = NULL;
+static DIR* (*origin_opendir)(const char *name) = NULL;
+static struct dirent* (*origin_readdir)(DIR *dirp) = NULL;
+static int (*origin_readdir_r)() = NULL;
+
+
+
 
 static __attribute__((constructor)) void beforeMain()
 {
@@ -31,6 +40,18 @@ static __attribute__((destructor)) void afterMain()
 
 #define log(format,...) \
         fprintf(logOutput,"[monitor] " format "\n", ##__VA_ARGS__); 
+
+void getFileNameByFd(int fd,char fileName[])
+{
+	// dir use dirfd
+	int bufSize = 1024;
+	char procLink[bufSize];
+	ssize_t size;	
+
+	sprintf(procLink,"/proc/self/fd/%d",fd);
+	size = readlink(procLink, fileName, bufSize);
+	fileName[size] = '\0';		
+}
 
 uid_t getuid(void)
 {
