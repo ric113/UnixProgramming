@@ -6,12 +6,14 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <pwd.h>
+#include <grp.h>
 
+#define BUF_SIZE 512
 #define log(format,...) \
         fprintf(logOutput,"[monitor] " format "\n", ##__VA_ARGS__); 
 #define bindOrigin(name) \
         origin_##name = dlsym(handle, #name);
-
 
 FILE* logOutput;
 
@@ -91,28 +93,91 @@ static mode_t (*origin_umask)(mode_t mask) = NULL;
 
 static __attribute__((constructor)) void beforeMain()
 {
-        if(strcmp(getenv("MONITOR_OUTPUT"),"stderr") == 0)
-                logOutput = stderr;
-        else
-                logOutput = fopen(getenv("MONITOR_OUTPUT"),"w");
-
+        // Bind to origin lib .
         void *handle = dlopen("libc.so.6", RTLD_LAZY);
         if(handle != NULL)
         {
                 bindOrigin(getuid);
                 bindOrigin(write);
-                /*
-                bindOrigin(getuid);
-                bindOrigin(getuid);
-                bindOrigin(getuid);
-                bindOrigin(getuid);
-                bindOrigin(getuid);
-                bindOrigin(getuid);
-                bindOrigin(getuid);
-                */
-                
-                
+                bindOrigin(fdopendir);
+                bindOrigin(opendir);
+                bindOrigin(readdir);
+                bindOrigin(readdir_r);
+                bindOrigin(rewinddir);
+                bindOrigin(seekdir);
+                bindOrigin(telldir);
+                bindOrigin(open);
+                bindOrigin(remove);
+                bindOrigin(rename);
+                bindOrigin(setbuf);
+                bindOrigin(setvbuf);
+                bindOrigin(tempnam);
+                bindOrigin(tmpfile);
+                bindOrigin(open);
+                bindOrigin(exit);
+                bindOrigin(getenv);
+                bindOrigin(mkdtemp);
+                bindOrigin(mkstemp);
+                bindOrigin(putenv);
+                bindOrigin(rand);
+                bindOrigin(srand);
+                bindOrigin(system);
+                bindOrigin(chdir);
+                bindOrigin(chown);
+                bindOrigin(close);
+                bindOrigin(dup);
+                bindOrigin(dup2);
+                bindOrigin(execl);
+                bindOrigin(execle);
+                bindOrigin(execlp);
+                bindOrigin(execv);
+                bindOrigin(execve);
+                bindOrigin(execvp);
+                bindOrigin(fchdir);
+                bindOrigin(fork);
+                bindOrigin(fsync);
+                bindOrigin(ftruncate);
+                bindOrigin(getcwd);
+                bindOrigin(getegid);
+                bindOrigin(geteuid);
+                bindOrigin(getgid);
+                bindOrigin(link);
+                bindOrigin(pipe);
+                bindOrigin(pread);
+                bindOrigin(pwrite);
+                bindOrigin(read);
+                bindOrigin(readlink);
+                bindOrigin(rmdir);
+                bindOrigin(seteuid);
+                bindOrigin(setgid);
+                bindOrigin(setuid);
+                bindOrigin(sleep);
+                bindOrigin(symlink);
+                bindOrigin(unlink);
+                bindOrigin(fchmod);
+                bindOrigin(fstat);
+                bindOrigin(lstat);
+                bindOrigin(mkdir);
+                bindOrigin(mkfifo);
+                bindOrigin(stat);
+                bindOrigin(umask);
         }
+
+        // Set log output .
+        char *outpusDes = origin_getenv("MONITOR_OUTPUT");
+        if(outpusDes)
+        {
+            if(strcmp(outpusDes,"stderr") == 0)
+                logOutput = stderr;
+            else
+                logOutput = fopen(origin_getenv("MONITOR_OUTPUT"),"w");
+        }
+        else
+        {
+            // default to stderr .
+            logOutput = stderr;
+        }
+        
 }
 
 static __attribute__((destructor)) void afterMain()
@@ -123,13 +188,26 @@ static __attribute__((destructor)) void afterMain()
 void getFileNameByFd(int fd,char fileName[])
 {
 	// dir use dirfd
-	int bufSize = 1024;
-	char procLink[bufSize];
+	char procLink[BUF_SIZE];
 	ssize_t size;	
 
 	sprintf(procLink,"/proc/self/fd/%d",fd);
-	size = readlink(procLink, fileName, bufSize);
+	size = origin_readlink(procLink, fileName, BUF_SIZE);
 	fileName[size] = '\0';		
+}
+
+void getUsernameByUid(uid_t uid,char userName[])
+{
+    struct passwd *user;
+    user = getpwuid(uid);
+    userName = user->pw_name;
+}
+
+void getGroupnameByGid(gid_t gid, char groupName[])
+{
+    struct group *grp;
+    grp = getgrgid(gid);
+    groupName = grp->gr_name;
 }
 
 uid_t getuid(void)
@@ -141,7 +219,37 @@ uid_t getuid(void)
 ssize_t write(int fd,const void *buf,size_t count)
 {
        int result = origin_write(fd,buf,count);
-       log("write(%d,%s,%d) = %d",fd,buf,count,result);
+       char fileName[BUF_SIZE];
+       getFileNameByFd(fd,fileName);
+
+       if(fileName)
+            log("write(%s,%s,%zd) = %zd",fileName,buf,count,result);
+       else
+            log("write(%d,%s,%zd) = %zd",fd,buf,count,result);
+
        return result;
+}
+
+int closedir(DIR *dirp)
+{
+    int result = origin_closedir(dirp);
+    int dirFd = dirfd(dirp);
+    char fileName[BUF_SIZE];
+    getFileNameByFd(dirfd,fileName);
+
+    log("closedir(%s) = %d",fileName,result);
+
+    return result;
+}
+
+char* getenv(const char *name)
+{
+    char *result = origin_getenv(name);
+    if(result)
+        log("getenv(%s) = %s",name,result);
+    else
+        log("getenv(%s) = \'(null)\'",name);
+
+    return result;
 }
 
