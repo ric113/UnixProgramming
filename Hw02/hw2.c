@@ -8,6 +8,8 @@
 #include <fcntl.h>
 #include <pwd.h>
 #include <grp.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 #define BUF_SIZE 512
 #define log(format,...) \
@@ -78,7 +80,7 @@ static int (*origin_setegid)(gid_t egid) = NULL;
 static int (*origin_seteuid)(uid_t euid) = NULL;
 static int (*origin_setgid)(gid_t gid) = NULL;
 static int (*origin_setuid)(uid_t uid) = NULL;
-static unsigned int (*sleep)(unsigned int seconds) = NULL;
+static unsigned int (*origin_sleep)(unsigned int seconds) = NULL;
 static int (*origin_symlink)(const char *oldpath, const char *newpath) = NULL;
 static int (*origin_unlink)(const char *path) = NULL;
 static int (*origin_chmod)(const char *path, mode_t mode) = NULL;
@@ -89,6 +91,9 @@ static int (*origin_mkdir)(const char *pathname, mode_t mode) = NULL;
 static int (*origin_mkfifo)(const char *pathname, mode_t mode) = NULL;
 static int (*origin___xstat)(int ver, const char *path, struct stat *buf) = NULL;
 static mode_t (*origin_umask)(mode_t mask) = NULL;
+static int (*origin_stat)(const char *path, struct stat *buf) = NULL;
+static int (*origin_fstat)(int fd, struct stat *buf) = NULL;
+static int (*origin_lstat)(const char *path, struct stat *buf) = NULL;
 
 
 static __attribute__((constructor)) void beforeMain()
@@ -223,9 +228,13 @@ ssize_t write(int fd,const void *buf,size_t count)
        getFileNameByFd(fd,fileName);
 
        if(fileName)
-            log("write(%s,%s,%zd) = %zd",fileName,buf,count,result);
+       {
+            log("write(\"%s\",%s,%zd) = %zd",fileName,buf,count,result);
+       }
        else
+       {
             log("write(%d,%s,%zd) = %zd",fd,buf,count,result);
+       }
 
        return result;
 }
@@ -234,22 +243,765 @@ int closedir(DIR *dirp)
 {
     int result = origin_closedir(dirp);
     int dirFd = dirfd(dirp);
-    char fileName[BUF_SIZE];
-    getFileNameByFd(dirfd,fileName);
+    char dirName[BUF_SIZE];
+    getFileNameByFd(dirfd,dirName);
 
-    log("closedir(%s) = %d",fileName,result);
+    log("closedir(\"%s\") = %d",dirName,result);
 
     return result;
 }
+
+DIR* fdopendir(int fd)
+{
+    DIR* result = origin_fdopendir(fd);
+    
+    if(result)
+    {
+        int dirFd = dirfd(result);
+        char dirName[BUF_SIZE];
+        getFileNameByFd(dirFd,dirName);
+
+        log("fdopendir(%d) = \"%s\"",fd,dirName);
+    }
+    else
+    {
+        log("fdopendir(%d) = (nil)",fd);
+    }
+
+    return result;
+}
+
+DIR* opendir(const char *name)
+{
+    DIR* result = origin_opendir(name);
+
+    if(result)
+    {
+        int dirFd = dirfd(result);
+        char dirName[BUF_SIZE];
+        getFileNameByFd(dirFd,dirName);
+
+        log("fdopendir(\"%s\") = \"%s\"",name,dirName);
+    }
+    else
+    {
+        log("fdopendir(\"%s\") = (nil)",name);
+    }
+
+    return result;
+}
+
+struct dirent* readdir(DIR *dirp)
+{
+    struct dirent *result = origin_readdir(dirp);
+    int dirFd = dirfd(dirp);
+    char dirName[BUF_SIZE];
+    getFileNameByFd(dirFd,dirName);
+
+    if(result)
+    {
+        ino_t inode = result->d_ino;
+        char *dName = result->d_name;
+
+        log("readdir(\"%s\") = (inode = %zu,dir Name = \"%s\")",dirName,inode,dName);
+    }
+    else
+    {
+        log("readdir(\"%s\") = (nil)",dirName);
+    }
+
+    return result;
+}
+
+int readdir_r(DIR *dirp, struct dirent *entry, struct dirent **result)
+{
+    int resultValue = origin_readdir_r(dirp,entry,result);
+
+    int dirFd = dirfd(dirp);
+    char dirName[BUF_SIZE];
+    getFileNameByFd(dirFd,dirName);
+
+    ino_t inode = entry->d_ino;
+    char *dName = entry->d_name;
+
+    log("readdir_r(\"%s\",(inode = %zu , dir Name = \"%s\"), %p) = %d", dirName, inode, dName,result,resultValue);
+
+    return resultValue;
+}
+
+void rewinddir(DIR *dirp)
+{
+    origin_rewinddir(dirp);
+
+    int dirFd = dirfd(dirp);
+    char dirName[BUF_SIZE];
+    getFileNameByFd(dirFd,dirName);
+
+    log("rewinddir(\"%s\")",dirName);
+}
+
+
+void seekdir(DIR *dirp, long loc)
+{
+    origin_seekdir(dirp,loc);
+
+    int dirFd = dirfd(dirp);
+    char dirName[BUF_SIZE];
+    getFileNameByFd(dirFd,dirName);
+
+    log("seekdir(\"%s\", %ld)",dirName,loc);
+}
+
+long telldir(DIR *dirp)
+{
+    long result = origin_telldir(dirp);
+
+    int dirFd = dirfd(dirp);
+    char dirName[BUF_SIZE];
+    getFileNameByFd(dirFd,dirName);
+
+    log("telldir(\"%s\") = %ld", dirName, result);
+
+    return result;
+}
+int creat(const char *pathname, mode_t mode)
+{
+    int result = origin_creat(pathname, mode);
+
+    log("creat(\"%s\", %o) = %d",pathname, mode, result);
+
+    return result;
+}
+
+/*
+int open(const char *pathname, int flags, ...)
+{
+    // 
+}
+*/
+
+int remove(const char *pathname)
+{
+    int result = origin_remove(pathname);
+    log("remove(\"%s\") = %d", pathname, result);
+
+    return result;_
+}
+
+int rename(const char *oldpath, const char *newpath)
+{
+    int result = origin_rename(oldpath, newpath);
+    log("rename(\"%s\", \"%s\") = %d", oldpath, newpath, result);
+
+    return result;
+}
+
+void setbuf(FILE *stream, char *buf)
+{
+    origin_setvbuf(stream, buf);
+
+    int fileFd = fileno(stream);
+    char fileName[BUF_SIZE];
+    getFileNameByFd(fileFd,fileName);
+
+    log("setbuf(\"%s\", \"%s\")", fileName, buf);
+}
+
+int setvbuf(FILE *stream, char *buf, int mode, size_t size)
+{
+    int result = origin_setvbuf(stream, buf, mode, size);
+
+    int fileFd = fileno(stream);
+    char fileName[BUF_SIZE];
+    getFileNameByFd(fileFd,fileName);
+
+    log("setvbuf(\"%s\", \"%s\", %d, %zd) = %d", fileName, buf, mode, size, result);
+
+    return result;
+}
+
+char* tempnam(const char *dir, const char *pfx)
+{
+    char *result = origin_tempnam(dir, pfx);
+
+    if(result)
+    {
+        log("tempnam(\"%s\", \"%s\") = \"%s\"", dir, pfx, result);
+    }
+    else
+    {
+        log("tempnam(\"%s\", \"%s\") = (nil)", dir, pfx);
+    }
+
+    return result;
+}
+
+
+FILE* tmpfile(void)
+{
+    FILE *result = origin_tmpfile();
+
+    if(result)
+    {
+        int fileFd = fileno(result);
+        char fileName[BUF_SIZE];
+        getFileNameByFd(fileFd,fileName);
+
+         log("tmpfile(void) = \"%s\"", fileName);
+    }
+    else
+    {
+        log("tmpfile(void) = (nil)");
+    }
+    
+    return result;
+}
+
+
+char* tmpnam(char *s)
+{
+    char *result = origin_tmpnam(s);
+
+    if(result)
+    {
+        log("tmpnam(\"%s\") = \"%s\"", s, result);
+    }
+    else
+    {
+        log("tmpnam(\"%s\") = (nil)", s);
+    }
+
+    return result;
+}
+
+void exit(int status)
+{
+    origin_exit(status);
+
+    log("exit(%d)", status);
+
+}
+
+char* mkdtemp(char *_template)
+{
+    char *result = origin_mkdtemp(_template);
+
+    if(result)
+    {
+        log("mkdtemp(\"%s\") = \"%s\"", _template, result);
+    }
+    else
+    {
+        log("mkdtemp(\"%s\") = (nil)", _template);
+    }
+
+    return result;
+}
+
+int mkstemp(char *_template)
+{
+    int result = origin_mkstemp(_template);
+
+    log("mkdtemp(\"%s\") = %d", _template, result);
+
+    return result;
+}
+
+
+int putenv(char *string)
+{
+    int result = origin_putenv(string);
+
+    log("putenv(\"%s\") = %d", string, result);
+
+    return result;
+}
+
+int rand(void)
+{
+    int result = origin_rand();
+
+    log("rand(void) = %d", result);
+
+    return result;
+}
+
+int rand_r(unsigned int *seedp)
+{
+    int result = origin_rand_r(seedp);
+
+    log("rand_r(%u) = %d", *seedp, result);
+
+    return result;
+}
+
+int setenv(const char *name, const char *value, int overwrite)
+{
+    int result = origin_setenv(name, value, overwrite);
+
+    log("setenv(\"%s\", \"%s\", %d) = %d", name, value, overwrite, result);
+
+    return result;
+}
+
+void srand(unsigned int seed)
+{
+    origin_srand(seed);
+
+    log("srand(%u)", seed);
+}
+
+int system(const char *command)
+{
+    int result = origin_system)(command);
+
+    log("system(\"%s\") = %d", command, result);
+
+    return result;
+}
+
+int chdir(const char *path)
+{
+    int result = origin_chdir(path);
+
+    log("chdir(\"%s\") = %d", path, result);
+
+    return result;
+}
+
+int chown(const char *path, uid_t owner, gid_t group)
+{
+    int result = origin_chown(path, owner, group);
+
+    char userName[BUF_SIZE];
+    char groupName[BUF_SIZE];
+
+    getUsernameByUid(owner, userName);
+    getGroupnameByGid(group, groupName);
+
+    log("chown(\"%s\", \"%s\", \"%s\") = %d", path, userName, groupName, result);
+
+    return result;
+}
+
+int close(int fd)
+{
+    int result = origin_close(fd);
+
+    char fileName[BUF_SIZE];
+    getFileNameByFd(fd, fileName);
+
+    log("close(\"%s\") = %d", fileName, result);
+
+    return result;
+}
+
+int dup(int oldfd)
+{
+    int result = origin_dup(oldfd);
+
+    char fileName[BUF_SIZE];
+    getFileNameByFd(oldfd, fileName); 
+    
+    log("dup(\"%s\") = %d", fileName, result);
+
+    return result;   
+}
+
+int dup2(int oldfd, int newfd)
+{
+    int result = origin_dup2(oldfd, newfd);
+
+    char oldFileName[BUF_SIZE];
+    getFileNameByFd(oldfd, oldFileName); 
+    char newFileName[BUF_SIZE];
+    getFileNameByFd(newfd, newFileName);
+
+    log("dup2(\"%s\", \"%s\") = %d", oldFileName, newFileName, result);
+
+    return result;
+}
+
+void _exit(int status)
+{
+    origin__exit(status);
+
+    log("_exit(%d)", status);
+}
+
+/*
+int execl(const char *path, const char *arg, ...)
+{
+
+}
+
+int execle(const char *path, const char *arg, ...)
+{
+
+}
+
+int execlp(const char *file, const char *arg, ...)
+{
+
+}
+
+int execv(const char *path, char *const argv[])
+{
+
+}
+int execve(const char *filename, char *const argv[], char *const envp[])
+{
+
+}
+
+int execvp(const char *file, char *const argv[])
+{
+
+}
+*/
+
+int fchdir(int fd)
+{
+    int result = origin_fchdir(fd);
+
+    char fileName[BUF_SIZE];
+    getFileNameByFd(fd, fileName); 
+
+    log("fchdir(\"%s\") = %d", fileName, result);
+
+    return result;
+
+}
+
+int fchown(int fd, uid_t owner, gid_t group)
+{
+    int result = origin_fchown(fd, owner, group);
+
+    char fileName[BUF_SIZE];
+    getFileNameByFd(fd, fileName); 
+
+    char userName[BUF_SIZE];
+    char groupName[BUF_SIZE];
+    getUsernameByUid(owner, userName);
+    getGroupnameByGid(group, groupName);
+
+    log("fchown(\"%s\", \"%s\", \"%s\") = %d", fileName, userName, groupName);
+
+    return result;
+}
+
+pid_t fork(void)
+{
+    fflush(logOutput);
+
+    int result = origin_fork();
+
+    if(result == 0)
+        fclose(logOutput);
+    else if(result > 0)
+    {
+        log("fork(void) = %d", result);
+    }  
+
+    return result;
+}
+
+int fsync(int fd)
+{
+    int result = origin_fsync(fd);
+
+    char fileName[BUF_SIZE];
+    getFileNameByFd(fd, fileName); 
+
+    log("fsync(\"%s\") = %d", fileName, result);
+
+    return result;    
+}
+
+int ftruncate(int fd, off_t length)
+{
+    int result = origin_ftruncate(fd, length);
+
+    char fileName[BUF_SIZE];
+    getFileNameByFd(fd, fileName); 
+
+    log("ftruncate(\"%s\", %d) = %d", fileName, length, result);
+
+    return result;
+}
+
+char* getcwd(char *buf, size_t size)
+{
+    char *result = origin_getcwd(buf, size);
+
+    if(result)
+    {
+        log("getcwd(\"%s\", %zu) = \"%s\"", buf, size, result);
+    }
+    else
+    {
+        log("getcwd(\"%s\", %zu) = (nil)", buf, size);
+    }
+
+    return result;
+}
+
+gid_t getegid(void)
+{
+    gid_t result = origin_getegid();
+
+    char groupName[BUF_SIZE];
+    getGroupnameByGid(result, groupName);
+
+    log("getegid(void) = (egid = %zd, gName = %s)",result, groupName);
+
+    return result;
+}
+
+uid_t geteuid(void)
+{
+    uid_t result = origin_geteuid();
+
+    char userName[BUF_SIZE];
+    getUsernameByUid(result, groupName); 
+
+    log("geteuid(void) = (euid = %zd, uName = %s)",result, userName);
+
+    return result;       
+}
+
+gid_t getgid(void)
+{
+    gid_t result = origin_getgid();
+
+    char groupName[BUF_SIZE];
+    getGroupnameByGid(result, groupName);
+
+    log("getgid(void) = (egid = %zd, gName = %s)",result, groupName);
+
+    return result;
+}
+
+int link(const char *oldpath, const char *newpath)
+{
+    int result = origin_link(oldpath, newpath);
+
+    log("link(\"%s\", \"%s\") = %d", oldpath, newpath, result);
+
+    return result;
+}
+
+
+int pipe(int pipefd[2])
+{
+    int result = origin_pipe(pipefd);
+
+    log("pipe((pipe in fd = %d, pipe out fd = %d)) = %d", pipefd[1], pipefd[0], result);
+
+    return result;
+}
+
+ssize_t pread(int fd, void *buf, size_t count, off_t offset)
+{
+    ssize_t result = origin_pread(fd, buf, count, offset);
+
+    char fileName[BUF_SIZE];
+    getFileNameByFd(fd, fileName);
+
+    log("pread(\"%s\", %p, %zu, %d) = %zu", fileName, buf, count, offset, result);
+
+    return result;
+
+}
+
+ssize_t pwrite(int fd, const void *buf, size_t count, off_t offset)
+{
+    ssize_t result = origin_pwrite(fd, buf, count, offset);
+
+    char fileName[BUF_SIZE];
+    getFileNameByFd(fd, fileName);
+
+    log("pwrite(\"%s\", %p, %zu, %d) = %zu", fileName, buf, count, offset, result);
+
+    return result;
+}
+
+ssize_t read(int fd, void *buf, size_t count)
+{
+    ssize_t result = origin_read(fd, buf, count);
+
+    char fileName[BUF_SIZE];
+    getFileNameByFd(fd, fileName);
+
+    log("read(\"%s\", %p, %zu) = %zu", fileName, buf, count, result);
+
+    return result;
+}
+
+ssize_t readlink(const char *path, char *buf, size_t bufsiz)
+{
+    ssize_t result = origin_readlink(path, buf, bufsiz);
+
+    log("readlink(\"%s\", \"%s\", %zu) = %zu", path, buf, bufsiz, result);
+
+    return result;
+}
+
+int rmdir(const char *pathname)
+{
+    int result = origin_rmdir(pathname);
+
+    log("rmdir(\"%d\") = %d", pathname, result);
+
+    return result;
+}
+
+int setegid(gid_t egid)
+{
+    int result = origin_setegid(egid);
+
+    char groupName[BUF_SIZE];
+    getGroupnameByGid(egid, groupName);
+
+    log("setegid((egid = %d, gName = %s)) = %d", egid, groupName, result);
+
+    return result;
+}
+
+int seteuid(uid_t euid)
+{
+    int result = origin_seteuid(euid);
+
+    char userName[BUF_SIZE];
+    getUsernameByUid(euid, userName);
+
+    log("seteuid((euid = %d, uName = %s)) = %d", euid, userName, result);
+
+    return result;
+}
+
+int setgid(gid_t gid)
+{
+    int result = origin_setgid(gid);
+
+    char groupName[BUF_SIZE];
+    getGroupnameByGid(gid, groupName);
+
+    log("setgid((gid = %d, gName = %s)) = %d", gid, groupName, result);
+
+    return result;
+}
+
+int setuid(uid_t uid)
+{
+    int result = origin_setuid(uid);
+
+    char userName[BUF_SIZE];
+    getUsernameByUid(uid, userName);
+
+    log("setuid((uid = %d, uName = %s)) = %d", uid, userName, result);
+
+    return result;
+}
+
+unsigned int sleep(unsigned int seconds)
+{
+    unsigned int result = origin_sleep(seconds);
+
+    log("sleep(%u) = %u", seconds, result);
+
+    return result;
+}
+
+int symlink(const char *oldpath, const char *newpath)
+{
+    int result = origin_symlink(oldpath, newpath);
+
+    log("symlink(\"%s\", \"%s\") = %d", oldpath, newpath, result);
+
+    return result;
+}
+
+int unlink(const char *path)
+{
+    int result = origin_unlink(path);
+
+    log("unlink(\"%s\") = %d", path, result);
+
+    return result;
+}
+
+int chmod(const char *path, mode_t mode)
+{
+    int result = origin_chmod(path, mode);
+
+    log("chmod(\"%s\", %o) = %d", path, mode, result);
+
+    return result;
+}
+
+int fchmod(int fd, mode_t mode)
+{
+    int result = origin_fchmod(fd, mode);
+
+    char fileName[BUF_SIZE];
+    getFileNameByFd(fd, fileName);
+
+    log("fchmod(\"%s\", %o) = %d", fileName, mode, result);
+
+    return result;
+}
+
+
+int mkdir(const char *pathname, mode_t mode)
+{
+    int result = origin_mkdir(pathname,mode);
+
+    log("mkdir(\"%s\", %o) = %d", pathname, mode, result);
+
+    return result;
+}
+
+int mkfifo(const char *pathname, mode_t mode)
+{
+    int result = origin_mkfifo(pathname, mode);
+
+    log("mkfifo(\"%s\", %o) = %d", pathname, mode, result);
+
+    return result;
+}
+
+mode_t umask(mode_t mask)
+{
+    mode_t result = origin_umask(mask);
+
+    log("umask(%o) = %o", mask, result);
+
+    return result;
+}
+
 
 char* getenv(const char *name)
 {
     char *result = origin_getenv(name);
     if(result)
-        log("getenv(%s) = %s",name,result);
+    {
+        log("getenv(\"%s\") = %s",name,result);
+    }
     else
-        log("getenv(%s) = \'(null)\'",name);
+    {
+        log("getenv(\"%s\") = \'(null)\'",name);
+    }
 
     return result;
 }
+
+/*
+int (*origin___xstat)(int ver, const char *path, struct stat *buf) = NULL;
+int (*origin___fxstat)(int ver, int fildes, struct stat *buf) = NULL;
+int (*origin___lxstat)(int ver, const char *path, struct stat *buf) = NULL;
+int (*origin_stat)(const char *path, struct stat *buf) = NULL;
+int (*origin_fstat)(int fd, struct stat *buf) = NULL;
+int (*origin_lstat)(const char *pat) = NULL;
+*/
 
