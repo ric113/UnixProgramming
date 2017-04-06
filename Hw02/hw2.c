@@ -5,13 +5,12 @@
 #include <dlfcn.h>
 #include <dirent.h>
 #include <sys/stat.h>
-#include <fcntl.h>
 #include <pwd.h>
 #include <grp.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <stdarg.h>
-#include <fcntl.h>
+
 
 #define BUF_SIZE 512
 #define log(format,...) \
@@ -118,7 +117,6 @@ static __attribute__((constructor)) void beforeMain()
                 bindOrigin(setvbuf);
                 bindOrigin(tempnam);
                 bindOrigin(tmpfile);
-                bindOrigin(open);
                 bindOrigin(exit);
                 bindOrigin(getenv);
                 bindOrigin(mkdtemp);
@@ -657,10 +655,10 @@ int execl(const char *path, const char *arg, ...)
 
     for(i = 1 ; i < argc ; i ++)
     {
-        log(", %s",argv[i]);
+        fprintf(stderr,", %s",argv[i]);
     }
 
-    log(")\n");
+    fprintf(stderr,"\n");
 
     fflush(logOutput);
     unsetenv("LD_PRELOAD");
@@ -701,15 +699,15 @@ int execle(const char *path, const char *arg, ...)
 
     for(i = 1 ; i < argc ; i ++)
     {
-        log(", %s",argv[i]);
+        fprintf(stderr,", %s",argv[i]);
     }
 
-    log(", envp = %s", envp[0]);
+    fprintf(stderr,", envp = %s", envp[0]);
     for(i = 1 ; envp[i] != NULL ; i ++)
     {
-        log(", %s",envp[i]);
+        fprintf(stderr,", %s",envp[i]);
     }
-    log(")\n");
+    fprintf(stderr,")\n");
 
 
     fflush(logOutput);
@@ -771,12 +769,13 @@ int execv(const char *path, char *const argv[])
     log("execv(\"%s\", argv = %s", path, argv[0]);
 
     int i;
-    for(i = 1; argv[i] != NULL; i++) 
+    for(i = 1 ; i < argc ; i ++)
     {
-        log(", %s",argv[i]);
+        fprintf(stderr,", %s",argv[i]);
     }
-    log(")\n");
 
+    fprintf(stderr,"\n");
+    
     fflush(logOutput);
     unsetenv("LD_PRELOAD");
 
@@ -792,16 +791,18 @@ int execve(const char *path, char *const argv[], char *const envp[])
     log("execve(\"%s\", argv = %s", path, argv[0]);
 
     int i;
-    for(i = 1; argv[i] != NULL; i++) 
+    for(i = 1 ; i < argc ; i ++)
     {
-        log(", %s",argv[i]);
+        fprintf(stderr,", %s",argv[i]);
     }
-    log(", envp = %s", envp[0]);
+
+    fprintf(stderr,", envp = %s", envp[0]);
     for(i = 1 ; envp[i] != NULL ; i ++)
     {
-        log(", %s",envp[i]);
+        fprintf(stderr,", %s",envp[i]);
     }
-    log(")\n");
+    fprintf(stderr,")\n");
+
 
     fflush(logOutput);
     unsetenv("LD_PRELOAD");
@@ -818,11 +819,12 @@ int execvp(const char *file, char *const argv[])
     log("execvp(\"%s\", argv = %s", file, argv[0]);
 
     int i;
-    for(i = 1; argv[i] != NULL; i++) 
+    for(i = 1 ; i < argc ; i ++)
     {
-        log(", %s",argv[i]);
+        fprintf(stderr,", %s",argv[i]);
     }
-    log(")\n");
+
+    fprintf(stderr,"\n");
 
     fflush(logOutput);
     unsetenv("LD_PRELOAD");
@@ -1022,11 +1024,11 @@ ssize_t read(int fd, void *buf, size_t count)
 
     if(fileName)
     {
-        log("read(\"%s\",%s,%zd) = %zd\n",fileName,buf,count,result);
+        log("read(\"%s\",%s,%zd) = %zd\n",fileName,(char*)buf,count,result);
     }
     else
     {
-        log("read(%d,%s,%zd) = %zd\n",fd,buf,count,result);
+        log("read(%d,%s,%zd) = %zd\n",fd,(char*)buf,count,result);
     }
 
     return result;
