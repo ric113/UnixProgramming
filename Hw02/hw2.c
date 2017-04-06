@@ -11,10 +11,11 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <stdarg.h>
+#include <fcntl.h>
 
 #define BUF_SIZE 512
 #define log(format,...) \
-        fprintf(logOutput,"[monitor] " format "\n", ##__VA_ARGS__); 
+        fprintf(logOutput,"[monitor] " format , ##__VA_ARGS__); 
 #define bindOrigin(name) \
         origin_##name = dlsym(handle, #name);
 
@@ -31,7 +32,7 @@ static void (*origin_rewinddir)(DIR *dirp) = NULL;
 static void (*origin_seekdir)(DIR *dirp, long loc) = NULL;
 static long (*origin_telldir)(DIR *dirp) = NULL;
 static int (*origin_creat)(const char *pathname, mode_t mode) = NULL;
-static int (*origin_open)(const char *pathname, int flags, ...) = NULL;
+static int (*origin_open)(const char *pathname, int flags) = NULL;
 static int (*origin_remove)(const char *pathname) = NULL;
 static int (*origin_rename)(const char *oldpath, const char *newpath) = NULL;
 static void (*origin_setbuf)(FILE *stream, char *buf) = NULL;
@@ -162,6 +163,9 @@ static __attribute__((constructor)) void beforeMain()
                 bindOrigin(mkdir);
                 bindOrigin(mkfifo);
                 bindOrigin(umask);
+                bindOrigin(__lxstat);
+                bindOrigin(__xstat);
+                bindOrigin(__fxstat);
         }
 
         // Set log output .
@@ -188,7 +192,6 @@ static __attribute__((destructor)) void afterMain()
 
 void getFileNameByFd(int fd,char fileName[])
 {
-	// dir use dirfd
 	char procLink[BUF_SIZE];
 	ssize_t size;	
 
@@ -213,7 +216,7 @@ void getGroupnameByGid(gid_t gid, char groupName[])
 
 uid_t getuid(void)
 {
-        log("getuid(%s) = %d","void",origin_getuid());
+        log("getuid(%s) = %d\n","void",origin_getuid());
         return origin_getuid();
 }
 
@@ -225,11 +228,11 @@ ssize_t write(int fd,const void *buf,size_t count)
 
        if(fileName)
        {
-            log("write(\"%s\",%s,%zd) = %zd",fileName,buf,count,result);
+            log("write(\"%s\",%s,%zu) = %d\n",fileName,(char*)buf,count,result);
        }
        else
        {
-            log("write(%d,%s,%zd) = %zd",fd,buf,count,result);
+            log("write(%d,%s,%zu) = %d\n",fd,(char*)buf,count,result);
        }
 
        return result;
@@ -241,9 +244,9 @@ int closedir(DIR *dirp)
 
     int dirFd = dirfd(dirp);
     char dirName[BUF_SIZE];
-    getFileNameByFd(dirfd,dirName);
+    getFileNameByFd(dirFd,dirName);
 
-    log("closedir(\"%s\") = %d",dirName,result);
+    log("closedir(\"%s\") = %d\n",dirName,result);
 
     return result;
 }
@@ -258,11 +261,11 @@ DIR* fdopendir(int fd)
         char dirName[BUF_SIZE];
         getFileNameByFd(dirFd,dirName);
 
-        log("fdopendir(%d) = \"%s\"",fd,dirName);
+        log("fdopendir(%d) = \"%s\"\n",fd,dirName);
     }
     else
     {
-        log("fdopendir(%d) = (nil)",fd);
+        log("fdopendir(%d) = (nil)\n",fd);
     }
 
     return result;
@@ -278,11 +281,11 @@ DIR* opendir(const char *name)
         char dirName[BUF_SIZE];
         getFileNameByFd(dirFd,dirName);
 
-        log("fdopendir(\"%s\") = \"%s\"",name,dirName);
+        log("fdopendir(\"%s\") = \"%s\"\n",name,dirName);
     }
     else
     {
-        log("fdopendir(\"%s\") = (nil)",name);
+        log("fdopendir(\"%s\") = (nil)\n",name);
     }
 
     return result;
@@ -300,11 +303,11 @@ struct dirent* readdir(DIR *dirp)
         ino_t inode = result->d_ino;
         char *dName = result->d_name;
 
-        log("readdir(\"%s\") = (inode = %zu,dir Name = \"%s\")",dirName,inode,dName);
+        log("readdir(\"%s\") = (inode = %zu,dir Name = \"%s\")\n",dirName,inode,dName);
     }
     else
     {
-        log("readdir(\"%s\") = (nil)",dirName);
+        log("readdir(\"%s\") = (nil)\n",dirName);
     }
 
     return result;
@@ -321,7 +324,7 @@ int readdir_r(DIR *dirp, struct dirent *entry, struct dirent **result)
     ino_t inode = entry->d_ino;
     char *dName = entry->d_name;
 
-    log("readdir_r(\"%s\",(inode = %zu , dir Name = \"%s\"), %p) = %d", dirName, inode, dName,result,resultValue);
+    log("readdir_r(\"%s\",(inode = %zu , dir Name = \"%s\"), %p) = %d\n", dirName, inode, dName,result,resultValue);
 
     return resultValue;
 }
@@ -334,7 +337,7 @@ void rewinddir(DIR *dirp)
     char dirName[BUF_SIZE];
     getFileNameByFd(dirFd,dirName);
 
-    log("rewinddir(\"%s\")",dirName);
+    log("rewinddir(\"%s\")\n",dirName);
 }
 
 
@@ -346,7 +349,7 @@ void seekdir(DIR *dirp, long loc)
     char dirName[BUF_SIZE];
     getFileNameByFd(dirFd,dirName);
 
-    log("seekdir(\"%s\", %ld)",dirName,loc);
+    log("seekdir(\"%s\", %ld)\n",dirName,loc);
 }
 
 long telldir(DIR *dirp)
@@ -357,7 +360,7 @@ long telldir(DIR *dirp)
     char dirName[BUF_SIZE];
     getFileNameByFd(dirFd,dirName);
 
-    log("telldir(\"%s\") = %ld", dirName, result);
+    log("telldir(\"%s\") = %ld\n", dirName, result);
 
     return result;
 }
@@ -365,34 +368,25 @@ int creat(const char *pathname, mode_t mode)
 {
     int result = origin_creat(pathname, mode);
 
-    log("creat(\"%s\", %o) = %d",pathname, mode, result);
+    log("creat(\"%s\", %o) = %d\n",pathname, mode, result);
 
     return result;
 }
 
-
-/*
-int open(const char *pathname, int flags, ...)
+int open(const char *pathname, int flags)
 {
-  int i;
-  va_list vl;
-  va_start(vl,pathname);
-  for (i=0;i<n;i++)
-  {
-    val=va_arg(vl,double);
-    printf (" [%.2f]",val);
-  }
-  va_end(vl);
-  printf ("\n");
-}
-*/
+    int result = origin_open(pathname, flags);
 
+    log("open(\"%s\", %d) = %d\n", pathname, flags, result);
+
+    return result;  
+}
 
 int remove(const char *pathname)
 {
     int result = origin_remove(pathname);
 
-    log("remove(\"%s\") = %d", pathname, result);
+    log("remove(\"%s\") = %d\n", pathname, result);
 
     return result;
 }
@@ -400,7 +394,7 @@ int remove(const char *pathname)
 int rename(const char *oldpath, const char *newpath)
 {
     int result = origin_rename(oldpath, newpath);
-    log("rename(\"%s\", \"%s\") = %d", oldpath, newpath, result);
+    log("rename(\"%s\", \"%s\") = %d\n", oldpath, newpath, result);
 
     return result;
 }
@@ -413,7 +407,7 @@ void setbuf(FILE *stream, char *buf)
     char fileName[BUF_SIZE];
     getFileNameByFd(fileFd,fileName);
 
-    log("setbuf(\"%s\", \"%s\")", fileName, buf);
+    log("setbuf(\"%s\", \"%s\")\n", fileName, buf);
 }
 
 int setvbuf(FILE *stream, char *buf, int mode, size_t size)
@@ -424,7 +418,7 @@ int setvbuf(FILE *stream, char *buf, int mode, size_t size)
     char fileName[BUF_SIZE];
     getFileNameByFd(fileFd,fileName);
 
-    log("setvbuf(\"%s\", \"%s\", %d, %zd) = %d", fileName, buf, mode, size, result);
+    log("setvbuf(\"%s\", \"%s\", %d, %zd) = %d\n", fileName, buf, mode, size, result);
 
     return result;
 }
@@ -435,11 +429,11 @@ char* tempnam(const char *dir, const char *pfx)
 
     if(result)
     {
-        log("tempnam(\"%s\", \"%s\") = \"%s\"", dir, pfx, result);
+        log("tempnam(\"%s\", \"%s\") = \"%s\"\n", dir, pfx, result);
     }
     else
     {
-        log("tempnam(\"%s\", \"%s\") = (nil)", dir, pfx);
+        log("tempnam(\"%s\", \"%s\") = (nil)\n", dir, pfx);
     }
 
     return result;
@@ -456,11 +450,11 @@ FILE* tmpfile(void)
         char fileName[BUF_SIZE];
         getFileNameByFd(fileFd,fileName);
 
-         log("tmpfile(void) = \"%s\"", fileName);
+         log("tmpfile(void) = \"%s\"\n", fileName);
     }
     else
     {
-        log("tmpfile(void) = (nil)");
+        log("tmpfile(void) = (nil)\n");
     }
     
     return result;
@@ -473,11 +467,11 @@ char* tmpnam(char *s)
 
     if(result)
     {
-        log("tmpnam(\"%s\") = \"%s\"", s, result);
+        log("tmpnam(\"%s\") = \"%s\"\n", s, result);
     }
     else
     {
-        log("tmpnam(\"%s\") = (nil)", s);
+        log("tmpnam(\"%s\") = (nil)\n", s);
     }
 
     return result;
@@ -486,7 +480,7 @@ char* tmpnam(char *s)
 void exit(int status)
 {
     
-    log("exit(%d)", status);
+    log("exit(%d)\n", status);
 
     origin_exit(status);
 }
@@ -497,11 +491,11 @@ char* mkdtemp(char *_template)
 
     if(result)
     {
-        log("mkdtemp(\"%s\") = \"%s\"", _template, result);
+        log("mkdtemp(\"%s\") = \"%s\"\n", _template, result);
     }
     else
     {
-        log("mkdtemp(\"%s\") = (nil)", _template);
+        log("mkdtemp(\"%s\") = (nil)\n", _template);
     }
 
     return result;
@@ -511,7 +505,7 @@ int mkstemp(char *_template)
 {
     int result = origin_mkstemp(_template);
 
-    log("mkdtemp(\"%s\") = %d", _template, result);
+    log("mkdtemp(\"%s\") = %d\n", _template, result);
 
     return result;
 }
@@ -521,7 +515,7 @@ int putenv(char *string)
 {
     int result = origin_putenv(string);
 
-    log("putenv(\"%s\") = %d", string, result);
+    log("putenv(\"%s\") = %d\n", string, result);
 
     return result;
 }
@@ -530,7 +524,7 @@ int rand(void)
 {
     int result = origin_rand();
 
-    log("rand(void) = %d", result);
+    log("rand(void) = %d\n", result);
 
     return result;
 }
@@ -539,7 +533,7 @@ int rand_r(unsigned int *seedp)
 {
     int result = origin_rand_r(seedp);
 
-    log("rand_r(%u) = %d", *seedp, result);
+    log("rand_r(%u) = %d\n", *seedp, result);
 
     return result;
 }
@@ -548,7 +542,7 @@ int setenv(const char *name, const char *value, int overwrite)
 {
     int result = origin_setenv(name, value, overwrite);
 
-    log("setenv(\"%s\", \"%s\", %d) = %d", name, value, overwrite, result);
+    log("setenv(\"%s\", \"%s\", %d) = %d\n", name, value, overwrite, result);
 
     return result;
 }
@@ -557,14 +551,14 @@ void srand(unsigned int seed)
 {
     origin_srand(seed);
 
-    log("srand(%u)", seed);
+    log("srand(%u)\n", seed);
 }
 
 int system(const char *command)
 {
     int result = origin_system(command);
 
-    log("system(\"%s\") = %d", command, result);
+    log("system(\"%s\") = %d\n", command, result);
 
     return result;
 }
@@ -573,7 +567,7 @@ int chdir(const char *path)
 {
     int result = origin_chdir(path);
 
-    log("chdir(\"%s\") = %d", path, result);
+    log("chdir(\"%s\") = %d\n", path, result);
 
     return result;
 }
@@ -588,7 +582,7 @@ int chown(const char *path, uid_t owner, gid_t group)
     getUsernameByUid(owner, userName);
     getGroupnameByGid(group, groupName);
 
-    log("chown(\"%s\", \"%s\", \"%s\") = %d", path, userName, groupName, result);
+    log("chown(\"%s\", \"%s\", \"%s\") = %d\n", path, userName, groupName, result);
 
     return result;
 }
@@ -600,7 +594,7 @@ int close(int fd)
     char fileName[BUF_SIZE];
     getFileNameByFd(fd, fileName);
 
-    log("close(\"%s\") = %d", fileName, result);
+    log("close(\"%s\") = %d\n", fileName, result);
 
     return result;
 }
@@ -608,11 +602,8 @@ int close(int fd)
 int dup(int oldfd)
 {
     int result = origin_dup(oldfd);
-
-    char fileName[BUF_SIZE];
-    getFileNameByFd(oldfd, fileName); 
     
-    log("dup(\"%s\") = %d", fileName, result);
+    log("dup(%d) = %d\n", oldfd, result);
 
     return result;   
 }
@@ -621,12 +612,7 @@ int dup2(int oldfd, int newfd)
 {
     int result = origin_dup2(oldfd, newfd);
 
-    char oldFileName[BUF_SIZE];
-    getFileNameByFd(oldfd, oldFileName); 
-    char newFileName[BUF_SIZE];
-    getFileNameByFd(newfd, newFileName);
-
-    log("dup2(\"%s\", \"%s\") = %d", oldFileName, newFileName, result);
+    log("dup2(%d, %d) = %d\n", oldfd, newfd, result);
 
     return result;
 }
@@ -634,9 +620,9 @@ int dup2(int oldfd, int newfd)
 void _exit(int status)
 {
 
-    log("_exit(%d)", status);
+    log("_exit(%d)\n", status);
     
-    fflush(outpusDes);
+    fflush(logOutput);
 
     origin__exit(status);
 }
@@ -659,7 +645,7 @@ int execl(const char *path, const char *arg, ...)
     // Create argv's array .
     char *argv[argc + 1] ;
     int i;
-    argv[0] = arg;
+    argv[0] = (char*)arg;
     va_start(v1,arg);
     for(i = 1 ; i < argc + 1 ; i ++)
     {
@@ -667,13 +653,20 @@ int execl(const char *path, const char *arg, ...)
     }
     va_end(v1);
 
-    log("execl(\"%s\", argv list pointer = %p)", path, arg);
+    log("execl(\"%s\", argv = %s", path, argv[0]);
 
-    fflush(outpusDes);
+    for(i = 1 ; i < argc ; i ++)
+    {
+        log(", %s",argv[i]);
+    }
+
+    log(")\n");
+
+    fflush(logOutput);
     unsetenv("LD_PRELOAD");
 
     int result = origin_execv(path, argv);
-    log("execl return = %d", result);
+    log("execl return = %d\n", result);
 
     return result;
 }
@@ -694,7 +687,7 @@ int execle(const char *path, const char *arg, ...)
     // Create argv's array .
     char *argv[argc + 1] ;
     int i;
-    argv[0] = arg;
+    argv[0] = (char*)arg;
     va_start(v1,arg);
     for(i = 1 ; i < argc + 1 ; i ++)
     {
@@ -704,13 +697,26 @@ int execle(const char *path, const char *arg, ...)
     char **envp = va_arg(v1,char **);
     va_end(v1);
 
-    log("execle(\"%s\", argv list pointer = %p, envp array pointer = %p)",path, arg, envp);
+    log("execle(\"%s\", argv = %s", path, argv[0]);
 
-    fflush(outpusDes);
+    for(i = 1 ; i < argc ; i ++)
+    {
+        log(", %s",argv[i]);
+    }
+
+    log(", envp = %s", envp[0]);
+    for(i = 1 ; envp[i] != NULL ; i ++)
+    {
+        log(", %s",envp[i]);
+    }
+    log(")\n");
+
+
+    fflush(logOutput);
     unsetenv("LD_PRELOAD");
 
     int result = origin_execve(path, argv, envp);
-    log("execle return = %d", result);
+    log("execle return = %d\n", result);
 
     return result;    
 }
@@ -731,7 +737,7 @@ int execlp(const char *file, const char *arg, ...)
     // Create argv's array .
     char *argv[argc + 1] ;
     int i;
-    argv[0] = arg;
+    argv[0] = (char*)arg;
     va_start(v1,arg);
     for(i = 1 ; i < argc + 1 ; i ++)
     {
@@ -739,13 +745,20 @@ int execlp(const char *file, const char *arg, ...)
     }
     va_end(v1);
 
-    log("execlp(\"%s\", argv list pointer = %p)", file, arg);
+    log("execlp(\"%s\", argv = %s", file, argv[0]);
 
-    fflush(outpusDes);
+    for(i = 1 ; i < argc ; i ++)
+    {
+        log(", %s",argv[i]);
+    }
+
+    log(")\n");
+
+    fflush(logOutput);
     unsetenv("LD_PRELOAD");
 
     int result = origin_execvp(file, argv);
-    log("execlp return = %d", result);
+    log("execlp return = %d\n", result);
 
     return result;
 
@@ -754,43 +767,71 @@ int execlp(const char *file, const char *arg, ...)
 
 int execv(const char *path, char *const argv[])
 {
-    log("execv(\"%s\", argv array pointer = %p)", path, argv);
+    
+    log("execv(\"%s\", argv = %s", path, argv[0]);
 
-    fflush(outpusDes);
+    int i;
+    for(i = 1; argv[i] != NULL; i++) 
+    {
+        log(", %s",argv[i]);
+    }
+    log(")\n");
+
+    fflush(logOutput);
     unsetenv("LD_PRELOAD");
 
     int result = origin_execv(path,argv);
-    log("execv return = %d", result);
+    log("execv return = %d\n", result);
 
     return result;
 
 }
 int execve(const char *path, char *const argv[], char *const envp[])
 {
-    log("execve(\"%s\", argv array pointer = %p, envp array pointer = %p)", path, argv, envp);
 
-    fflush(outpusDes);
+    log("execve(\"%s\", argv = %s", path, argv[0]);
+
+    int i;
+    for(i = 1; argv[i] != NULL; i++) 
+    {
+        log(", %s",argv[i]);
+    }
+    log(", envp = %s", envp[0]);
+    for(i = 1 ; envp[i] != NULL ; i ++)
+    {
+        log(", %s",envp[i]);
+    }
+    log(")\n");
+
+    fflush(logOutput);
     unsetenv("LD_PRELOAD");
 
     int result = origin_execve(path,argv,envp);
-    log("execve return = %d", result);
+    log("execve return = %d\n", result);
 
     return result;
 }
 
 int execvp(const char *file, char *const argv[])
 {
-    log("execvp(\"%s\", argv array pointer = %p)", file, argv);
 
-    fflush(outpusDes);
+    log("execvp(\"%s\", argv = %s", file, argv[0]);
+
+    int i;
+    for(i = 1; argv[i] != NULL; i++) 
+    {
+        log(", %s",argv[i]);
+    }
+    log(")\n");
+
+    fflush(logOutput);
     unsetenv("LD_PRELOAD");
 
     int result = origin_execvp(file,argv);
-    log("execvp return = %d", result);
+    log("execvp return = %d\n", result);
 
     return result;
 }
-
 
 int fchdir(int fd)
 {
@@ -799,7 +840,7 @@ int fchdir(int fd)
     char fileName[BUF_SIZE];
     getFileNameByFd(fd, fileName); 
 
-    log("fchdir(\"%s\") = %d", fileName, result);
+    log("fchdir(\"%s\") = %d\n", fileName, result);
 
     return result;
 
@@ -817,7 +858,7 @@ int fchown(int fd, uid_t owner, gid_t group)
     getUsernameByUid(owner, userName);
     getGroupnameByGid(group, groupName);
 
-    log("fchown(\"%s\", \"%s\", \"%s\") = %d", fileName, userName, groupName);
+    log("fchown(\"%s\", \"%s\", \"%s\") = %d\n", fileName, userName, groupName,result);
 
     return result;
 }
@@ -832,24 +873,24 @@ pid_t fork(void)
         fclose(logOutput);
     else if(result > 0)
     {
-        log("fork(void) = %d", result);
+        log("fork(void) = %d\n", result);
     }  
 
     return result;
 }
 
+// 確保fd的資料一更新後馬上寫到硬碟上 .
 int fsync(int fd)
 {
-    int result = origin_fsync(fd);
+    int result = origin_fsync(fd); 
 
-    char fileName[BUF_SIZE];
-    getFileNameByFd(fd, fileName); 
-
-    log("fsync(\"%s\") = %d", fileName, result);
+    log("fsync(%d) = %d\n", fd, result);
 
     return result;    
 }
 
+
+// 指定的file大小改為参数length指定的大小 .
 int ftruncate(int fd, off_t length)
 {
     int result = origin_ftruncate(fd, length);
@@ -857,7 +898,7 @@ int ftruncate(int fd, off_t length)
     char fileName[BUF_SIZE];
     getFileNameByFd(fd, fileName); 
 
-    log("ftruncate(\"%s\", %d) = %d", fileName, length, result);
+    log("ftruncate(\"%s\", %ld) = %d\n", fileName, length, result);
 
     return result;
 }
@@ -868,11 +909,11 @@ char* getcwd(char *buf, size_t size)
 
     if(result)
     {
-        log("getcwd(\"%s\", %zu) = \"%s\"", buf, size, result);
+        log("getcwd(\"%s\", %zu) = \"%s\"\n", buf, size, result);
     }
     else
     {
-        log("getcwd(\"%s\", %zu) = (nil)", buf, size);
+        log("getcwd(\"%s\", %zu) = (nil)\n", buf, size);
     }
 
     return result;
@@ -885,7 +926,7 @@ gid_t getegid(void)
     char groupName[BUF_SIZE];
     getGroupnameByGid(result, groupName);
 
-    log("getegid(void) = (egid = %zd, gName = %s)",result, groupName);
+    log("getegid(void) = (egid = %u, gName = %s)\n",result, groupName);
 
     return result;
 }
@@ -897,7 +938,7 @@ uid_t geteuid(void)
     char userName[BUF_SIZE];
     getUsernameByUid(result, userName); 
 
-    log("geteuid(void) = (euid = %zd, uName = %s)",result, userName);
+    log("geteuid(void) = (euid = %u, uName = %s)\n",result, userName);
 
     return result;       
 }
@@ -909,7 +950,7 @@ gid_t getgid(void)
     char groupName[BUF_SIZE];
     getGroupnameByGid(result, groupName);
 
-    log("getgid(void) = (egid = %zd, gName = %s)",result, groupName);
+    log("getgid(void) = (egid = %u, gName = %s)\n",result, groupName);
 
     return result;
 }
@@ -918,7 +959,7 @@ int link(const char *oldpath, const char *newpath)
 {
     int result = origin_link(oldpath, newpath);
 
-    log("link(\"%s\", \"%s\") = %d", oldpath, newpath, result);
+    log("link(\"%s\", \"%s\") = %d\n", oldpath, newpath, result);
 
     return result;
 }
@@ -928,11 +969,12 @@ int pipe(int pipefd[2])
 {
     int result = origin_pipe(pipefd);
 
-    log("pipe((pipe in fd = %d, pipe out fd = %d)) = %d", pipefd[1], pipefd[0], result);
+    log("pipe((pipe in fd = %d, pipe out fd = %d)) = %d\n", pipefd[1], pipefd[0], result);
 
     return result;
 }
 
+// read from or write to a file descriptor at a given offset
 ssize_t pread(int fd, void *buf, size_t count, off_t offset)
 {
     ssize_t result = origin_pread(fd, buf, count, offset);
@@ -940,10 +982,16 @@ ssize_t pread(int fd, void *buf, size_t count, off_t offset)
     char fileName[BUF_SIZE];
     getFileNameByFd(fd, fileName);
 
-    log("pread(\"%s\", %p, %zu, %d) = %zu", fileName, buf, count, offset, result);
+    if(fileName)
+    {
+        log("pread(\"%s\", %p, %zu, %ld) = %zu\n", fileName, buf, count, offset, result);
+    }
+    else
+    {
+        log("pread(%d, %p, %zu, %ld) = %zu\n", fd, buf, count, offset, result);
+    }
 
     return result;
-
 }
 
 ssize_t pwrite(int fd, const void *buf, size_t count, off_t offset)
@@ -953,8 +1001,15 @@ ssize_t pwrite(int fd, const void *buf, size_t count, off_t offset)
     char fileName[BUF_SIZE];
     getFileNameByFd(fd, fileName);
 
-    log("pwrite(\"%s\", %p, %zu, %d) = %zu", fileName, buf, count, offset, result);
-
+    if(fileName)
+    {
+        log("pwrite(\"%s\", %p, %zu, %ld) = %zu\n", fileName, buf, count, offset, result);
+    }
+    else
+    {
+        log("pwrite(%d, %p, %zu, %ld) = %zu\n", fd, buf, count, offset, result);
+    }
+    
     return result;
 }
 
@@ -965,7 +1020,14 @@ ssize_t read(int fd, void *buf, size_t count)
     char fileName[BUF_SIZE];
     getFileNameByFd(fd, fileName);
 
-    log("read(\"%s\", %p, %zu) = %zu", fileName, buf, count, result);
+    if(fileName)
+    {
+        log("read(\"%s\",%s,%zd) = %zd\n",fileName,buf,count,result);
+    }
+    else
+    {
+        log("read(%d,%s,%zd) = %zd\n",fd,buf,count,result);
+    }
 
     return result;
 }
@@ -974,7 +1036,7 @@ ssize_t readlink(const char *path, char *buf, size_t bufsiz)
 {
     ssize_t result = origin_readlink(path, buf, bufsiz);
 
-    log("readlink(\"%s\", \"%s\", %zu) = %zu", path, buf, bufsiz, result);
+    log("readlink(\"%s\", \"%s\", %zu) = %zu\n", path, buf, bufsiz, result);
 
     return result;
 }
@@ -983,7 +1045,7 @@ int rmdir(const char *pathname)
 {
     int result = origin_rmdir(pathname);
 
-    log("rmdir(\"%d\") = %d", pathname, result);
+    log("rmdir(\"%s\") = %d\n", pathname, result);
 
     return result;
 }
@@ -995,7 +1057,7 @@ int setegid(gid_t egid)
     char groupName[BUF_SIZE];
     getGroupnameByGid(egid, groupName);
 
-    log("setegid((egid = %d, gName = %s)) = %d", egid, groupName, result);
+    log("setegid((egid = %d, gName = %s)) = %d\n", egid, groupName, result);
 
     return result;
 }
@@ -1007,7 +1069,7 @@ int seteuid(uid_t euid)
     char userName[BUF_SIZE];
     getUsernameByUid(euid, userName);
 
-    log("seteuid((euid = %d, uName = %s)) = %d", euid, userName, result);
+    log("seteuid((euid = %d, uName = %s)) = %d\n", euid, userName, result);
 
     return result;
 }
@@ -1019,7 +1081,7 @@ int setgid(gid_t gid)
     char groupName[BUF_SIZE];
     getGroupnameByGid(gid, groupName);
 
-    log("setgid((gid = %d, gName = %s)) = %d", gid, groupName, result);
+    log("setgid((gid = %d, gName = %s)) = %d\n", gid, groupName, result);
 
     return result;
 }
@@ -1031,7 +1093,7 @@ int setuid(uid_t uid)
     char userName[BUF_SIZE];
     getUsernameByUid(uid, userName);
 
-    log("setuid((uid = %d, uName = %s)) = %d", uid, userName, result);
+    log("setuid((uid = %d, uName = %s)) = %d\n", uid, userName, result);
 
     return result;
 }
@@ -1040,7 +1102,7 @@ unsigned int sleep(unsigned int seconds)
 {
     unsigned int result = origin_sleep(seconds);
 
-    log("sleep(%u) = %u", seconds, result);
+    log("sleep(%u) = %u\n", seconds, result);
 
     return result;
 }
@@ -1049,7 +1111,7 @@ int symlink(const char *oldpath, const char *newpath)
 {
     int result = origin_symlink(oldpath, newpath);
 
-    log("symlink(\"%s\", \"%s\") = %d", oldpath, newpath, result);
+    log("symlink(\"%s\", \"%s\") = %d\n", oldpath, newpath, result);
 
     return result;
 }
@@ -1058,7 +1120,7 @@ int unlink(const char *path)
 {
     int result = origin_unlink(path);
 
-    log("unlink(\"%s\") = %d", path, result);
+    log("unlink(\"%s\") = %d\n", path, result);
 
     return result;
 }
@@ -1067,7 +1129,7 @@ int chmod(const char *path, mode_t mode)
 {
     int result = origin_chmod(path, mode);
 
-    log("chmod(\"%s\", %o) = %d", path, mode, result);
+    log("chmod(\"%s\", %o) = %d\n", path, mode, result);
 
     return result;
 }
@@ -1079,7 +1141,7 @@ int fchmod(int fd, mode_t mode)
     char fileName[BUF_SIZE];
     getFileNameByFd(fd, fileName);
 
-    log("fchmod(\"%s\", %o) = %d", fileName, mode, result);
+    log("fchmod(\"%s\", %o) = %d\n", fileName, mode, result);
 
     return result;
 }
@@ -1089,7 +1151,7 @@ int mkdir(const char *pathname, mode_t mode)
 {
     int result = origin_mkdir(pathname,mode);
 
-    log("mkdir(\"%s\", %o) = %d", pathname, mode, result);
+    log("mkdir(\"%s\", %o) = %d\n", pathname, mode, result);
 
     return result;
 }
@@ -1098,7 +1160,7 @@ int mkfifo(const char *pathname, mode_t mode)
 {
     int result = origin_mkfifo(pathname, mode);
 
-    log("mkfifo(\"%s\", %o) = %d", pathname, mode, result);
+    log("mkfifo(\"%s\", %o) = %d\n", pathname, mode, result);
 
     return result;
 }
@@ -1107,7 +1169,7 @@ mode_t umask(mode_t mask)
 {
     mode_t result = origin_umask(mask);
 
-    log("umask(%o) = %o", mask, result);
+    log("umask(%o) = %o\n", mask, result);
 
     return result;
 }
@@ -1118,11 +1180,11 @@ char* getenv(const char *name)
     char *result = origin_getenv(name);
     if(result)
     {
-        log("getenv(\"%s\") = %s",name,result);
+        log("getenv(\"%s\") = %s\n",name,result);
     }
     else
     {
-        log("getenv(\"%s\") = \'(null)\'",name);
+        log("getenv(\"%s\") = \'(null)\'\n",name);
     }
 
     return result;
@@ -1132,11 +1194,11 @@ int __xstat(int ver, const char *path, struct stat *buf)
 {
     int result = origin___xstat(ver, path,buf);
 
-    ino_t     ino = buf.st_ino;         
-    mode_t    mode = buf.st_mode;
-    off_t     size = buf.st_size; 
+    ino_t     ino = buf->st_ino;         
+    mode_t    mode = buf->st_mode;
+    off_t     size = buf->st_size; 
 
-    log("__xstat(%d, %s, (inode = %ju , file type and mode = %o , file size = %jd)) = %d", ver, path, (uintmax_t)ino, mode, (intmax_t)size);
+    log("__xstat(%d, %s, (inode = %ju , file type and mode = %o , file size = %jd)) = %d\n", ver, path, ino, mode, size,result);
 
     return result;
 }
@@ -1145,11 +1207,11 @@ int __fxstat(int ver, int fildes, struct stat *buf)
 {
     int result = origin___fxstat(ver, fildes,buf);
 
-    ino_t     ino = buf.st_ino;         
-    mode_t    mode = buf.st_mode;
-    off_t     size = buf.st_size; 
+    ino_t     ino = buf->st_ino;         
+    mode_t    mode = buf->st_mode;
+    off_t     size = buf->st_size; 
 
-    log("__fxstat(%d, %d, (inode = %ju , file type and mode = %o , file size = %jd)) = %d", ver, fildes, (uintmax_t)ino, mode, (intmax_t)size);
+    log("__fxstat(%d, %d, (inode = %ju , file type and mode = %o , file size = %jd)) = %d\n", ver, fildes, ino, mode, size, result);
 
     return result;
 }
@@ -1158,11 +1220,11 @@ int __lxstat(int ver, const char *path, struct stat *buf)
 {
     int result = origin___lxstat(ver, path,buf);
 
-    ino_t     ino = buf.st_ino;         
-    mode_t    mode = buf.st_mode;
-    off_t     size = buf.st_size; 
+    ino_t     ino = buf->st_ino;         
+    mode_t    mode = buf->st_mode;
+    off_t     size = buf->st_size; 
 
-    log("__lxstat(%d, %s, (inode = %ju , file type and mode = %o , file size = %jd)) = %d", ver, path, (uintmax_t)ino, mode, (intmax_t)size);
+    log("__lxstat(%d, %s, (inode = %ju , file type and mode = %o , file size = %jd)) = %d\n", ver, path, ino, mode, size, result);
 
     return result;
 }
