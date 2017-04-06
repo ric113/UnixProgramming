@@ -10,6 +10,7 @@
 #include <grp.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <stdarg.h>
 
 #define BUF_SIZE 512
 #define log(format,...) \
@@ -58,7 +59,7 @@ static int (*origin_execl)(const char *path, const char *arg, ...) = NULL;
 static int (*origin_execle)(const char *path, const char *arg, ...) = NULL;
 static int (*origin_execlp)(const char *file, const char *arg, ...) = NULL;
 static int (*origin_execv)(const char *path, char *const argv[]) = NULL;
-static int (*origin_execve)(const char *filename, char *const argv[], char *const envp[]) = NULL;
+static int (*origin_execve)(const char *path, char *const argv[], char *const envp[]) = NULL;
 static int (*origin_execvp)(const char *file, char *const argv[]) = NULL;
 static int (*origin_fchdir)(int fd) = NULL;
 static int (*origin_fchown)(int fd, uid_t owner, gid_t group) = NULL;
@@ -91,9 +92,6 @@ static int (*origin_mkdir)(const char *pathname, mode_t mode) = NULL;
 static int (*origin_mkfifo)(const char *pathname, mode_t mode) = NULL;
 static int (*origin___xstat)(int ver, const char *path, struct stat *buf) = NULL;
 static mode_t (*origin_umask)(mode_t mask) = NULL;
-static int (*origin_stat)(const char *path, struct stat *buf) = NULL;
-static int (*origin_fstat)(int fd, struct stat *buf) = NULL;
-static int (*origin_lstat)(const char *path, struct stat *buf) = NULL;
 
 
 static __attribute__((constructor)) void beforeMain()
@@ -108,6 +106,7 @@ static __attribute__((constructor)) void beforeMain()
                 bindOrigin(opendir);
                 bindOrigin(readdir);
                 bindOrigin(readdir_r);
+                bindOrigin(closedir);
                 bindOrigin(rewinddir);
                 bindOrigin(seekdir);
                 bindOrigin(telldir);
@@ -160,11 +159,8 @@ static __attribute__((constructor)) void beforeMain()
                 bindOrigin(symlink);
                 bindOrigin(unlink);
                 bindOrigin(fchmod);
-                bindOrigin(fstat);
-                bindOrigin(lstat);
                 bindOrigin(mkdir);
                 bindOrigin(mkfifo);
-                bindOrigin(stat);
                 bindOrigin(umask);
         }
 
@@ -242,6 +238,7 @@ ssize_t write(int fd,const void *buf,size_t count)
 int closedir(DIR *dirp)
 {
     int result = origin_closedir(dirp);
+
     int dirFd = dirfd(dirp);
     char dirName[BUF_SIZE];
     getFileNameByFd(dirfd,dirName);
@@ -373,19 +370,31 @@ int creat(const char *pathname, mode_t mode)
     return result;
 }
 
+
 /*
 int open(const char *pathname, int flags, ...)
 {
-    // 
+  int i;
+  va_list vl;
+  va_start(vl,pathname);
+  for (i=0;i<n;i++)
+  {
+    val=va_arg(vl,double);
+    printf (" [%.2f]",val);
+  }
+  va_end(vl);
+  printf ("\n");
 }
 */
+
 
 int remove(const char *pathname)
 {
     int result = origin_remove(pathname);
+
     log("remove(\"%s\") = %d", pathname, result);
 
-    return result;_
+    return result;
 }
 
 int rename(const char *oldpath, const char *newpath)
@@ -398,7 +407,7 @@ int rename(const char *oldpath, const char *newpath)
 
 void setbuf(FILE *stream, char *buf)
 {
-    origin_setvbuf(stream, buf);
+    origin_setbuf(stream, buf);
 
     int fileFd = fileno(stream);
     char fileName[BUF_SIZE];
@@ -476,10 +485,10 @@ char* tmpnam(char *s)
 
 void exit(int status)
 {
-    origin_exit(status);
-
+    
     log("exit(%d)", status);
 
+    origin_exit(status);
 }
 
 char* mkdtemp(char *_template)
@@ -553,7 +562,7 @@ void srand(unsigned int seed)
 
 int system(const char *command)
 {
-    int result = origin_system)(command);
+    int result = origin_system(command);
 
     log("system(\"%s\") = %d", command, result);
 
@@ -624,41 +633,164 @@ int dup2(int oldfd, int newfd)
 
 void _exit(int status)
 {
-    origin__exit(status);
 
     log("_exit(%d)", status);
+    
+    fflush(outpusDes);
+
+    origin__exit(status);
 }
 
-/*
+
+// exec() : 當exec後的program有error時才會返回原program .
 int execl(const char *path, const char *arg, ...)
 {
+    // Get arguments amount .
+    va_list v1;
+    va_start(v1,arg);
+    int argc = 0 ;
+    char *str ;
+    do{
+        str = va_arg(v1,char*);
+        argc ++ ;
+    } while( str != NULL);
+    va_end(v1);
 
+    // Create argv's array .
+    char *argv[argc + 1] ;
+    int i;
+    argv[0] = arg;
+    va_start(v1,arg);
+    for(i = 1 ; i < argc + 1 ; i ++)
+    {
+        argv[i] = va_arg(v1,char*);
+    }
+    va_end(v1);
+
+    log("execl(\"%s\", argv list pointer = %p)", path, arg);
+
+    fflush(outpusDes);
+    unsetenv("LD_PRELOAD");
+
+    int result = origin_execv(path, argv);
+    log("execl return = %d", result);
+
+    return result;
 }
 
 int execle(const char *path, const char *arg, ...)
 {
+    // Get arguments amount .
+    va_list v1;
+    va_start(v1,arg);
+    int argc = 0 ;
+    char *str ;
+    do{
+        str = va_arg(v1,char*);
+        argc ++ ;
+    } while( str != NULL);
+    va_end(v1);
 
+    // Create argv's array .
+    char *argv[argc + 1] ;
+    int i;
+    argv[0] = arg;
+    va_start(v1,arg);
+    for(i = 1 ; i < argc + 1 ; i ++)
+    {
+        argv[i] = va_arg(v1,char*);
+    }
+
+    char **envp = va_arg(v1,char **);
+    va_end(v1);
+
+    log("execle(\"%s\", argv list pointer = %p, envp array pointer = %p)",path, arg, envp);
+
+    fflush(outpusDes);
+    unsetenv("LD_PRELOAD");
+
+    int result = origin_execve(path, argv, envp);
+    log("execle return = %d", result);
+
+    return result;    
 }
 
 int execlp(const char *file, const char *arg, ...)
 {
+    // Get arguments amount .
+    va_list v1;
+    va_start(v1,arg);
+    int argc = 0 ;
+    char *str ;
+    do{
+        str = va_arg(v1,char*);
+        argc ++ ;
+    } while( str != NULL);
+    va_end(v1);
+
+    // Create argv's array .
+    char *argv[argc + 1] ;
+    int i;
+    argv[0] = arg;
+    va_start(v1,arg);
+    for(i = 1 ; i < argc + 1 ; i ++)
+    {
+        argv[i] = va_arg(v1,char*);
+    }
+    va_end(v1);
+
+    log("execlp(\"%s\", argv list pointer = %p)", file, arg);
+
+    fflush(outpusDes);
+    unsetenv("LD_PRELOAD");
+
+    int result = origin_execvp(file, argv);
+    log("execlp return = %d", result);
+
+    return result;
+
 
 }
 
 int execv(const char *path, char *const argv[])
 {
+    log("execv(\"%s\", argv array pointer = %p)", path, argv);
+
+    fflush(outpusDes);
+    unsetenv("LD_PRELOAD");
+
+    int result = origin_execv(path,argv);
+    log("execv return = %d", result);
+
+    return result;
 
 }
-int execve(const char *filename, char *const argv[], char *const envp[])
+int execve(const char *path, char *const argv[], char *const envp[])
 {
+    log("execve(\"%s\", argv array pointer = %p, envp array pointer = %p)", path, argv, envp);
 
+    fflush(outpusDes);
+    unsetenv("LD_PRELOAD");
+
+    int result = origin_execve(path,argv,envp);
+    log("execve return = %d", result);
+
+    return result;
 }
 
 int execvp(const char *file, char *const argv[])
 {
+    log("execvp(\"%s\", argv array pointer = %p)", file, argv);
 
+    fflush(outpusDes);
+    unsetenv("LD_PRELOAD");
+
+    int result = origin_execvp(file,argv);
+    log("execvp return = %d", result);
+
+    return result;
 }
-*/
+
 
 int fchdir(int fd)
 {
@@ -763,7 +895,7 @@ uid_t geteuid(void)
     uid_t result = origin_geteuid();
 
     char userName[BUF_SIZE];
-    getUsernameByUid(result, groupName); 
+    getUsernameByUid(result, userName); 
 
     log("geteuid(void) = (euid = %zd, uName = %s)",result, userName);
 
@@ -996,12 +1128,43 @@ char* getenv(const char *name)
     return result;
 }
 
-/*
-int (*origin___xstat)(int ver, const char *path, struct stat *buf) = NULL;
-int (*origin___fxstat)(int ver, int fildes, struct stat *buf) = NULL;
-int (*origin___lxstat)(int ver, const char *path, struct stat *buf) = NULL;
-int (*origin_stat)(const char *path, struct stat *buf) = NULL;
-int (*origin_fstat)(int fd, struct stat *buf) = NULL;
-int (*origin_lstat)(const char *pat) = NULL;
-*/
+int __xstat(int ver, const char *path, struct stat *buf)
+{
+    int result = origin___xstat(ver, path,buf);
+
+    ino_t     ino = buf.st_ino;         
+    mode_t    mode = buf.st_mode;
+    off_t     size = buf.st_size; 
+
+    log("__xstat(%d, %s, (inode = %ju , file type and mode = %o , file size = %jd)) = %d", ver, path, (uintmax_t)ino, mode, (intmax_t)size);
+
+    return result;
+}
+
+int __fxstat(int ver, int fildes, struct stat *buf)
+{
+    int result = origin___fxstat(ver, fildes,buf);
+
+    ino_t     ino = buf.st_ino;         
+    mode_t    mode = buf.st_mode;
+    off_t     size = buf.st_size; 
+
+    log("__fxstat(%d, %d, (inode = %ju , file type and mode = %o , file size = %jd)) = %d", ver, fildes, (uintmax_t)ino, mode, (intmax_t)size);
+
+    return result;
+}
+
+int __lxstat(int ver, const char *path, struct stat *buf)
+{
+    int result = origin___lxstat(ver, path,buf);
+
+    ino_t     ino = buf.st_ino;         
+    mode_t    mode = buf.st_mode;
+    off_t     size = buf.st_size; 
+
+    log("__lxstat(%d, %s, (inode = %ju , file type and mode = %o , file size = %jd)) = %d", ver, path, (uintmax_t)ino, mode, (intmax_t)size);
+
+    return result;
+}
+
 
