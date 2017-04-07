@@ -92,6 +92,12 @@ static int (*origin_mkdir)(const char *pathname, mode_t mode) = NULL;
 static int (*origin_mkfifo)(const char *pathname, mode_t mode) = NULL;
 static int (*origin___xstat)(int ver, const char *path, struct stat *buf) = NULL;
 static mode_t (*origin_umask)(mode_t mask) = NULL;
+// others .
+static void *(*origin_malloc)(size_t size) = NULL;
+static void (*origin_free)(void *ptr) = NULL;
+static void *(*origin_calloc)(size_t nmemb, size_t size) = NULL;
+static void *(*origin_realloc)(void *ptr, size_t size) = NULL;
+static int (*origin_fflush)(FILE *stream) = NULL;
 
 
 static __attribute__((constructor)) void beforeMain()
@@ -164,6 +170,11 @@ static __attribute__((constructor)) void beforeMain()
                 bindOrigin(__lxstat);
                 bindOrigin(__xstat);
                 bindOrigin(__fxstat);
+                bindOrigin(malloc);
+                bindOrigin(calloc);
+                bindOrigin(realloc);
+                bindOrigin(free);
+                bindOrigin(fflush);
         }
 
         // Set log output .
@@ -589,10 +600,7 @@ int close(int fd)
 {
     int result = origin_close(fd);
 
-    char fileName[BUF_SIZE];
-    getFileNameByFd(fd, fileName);
-
-    log("close(\"%s\") = %d\n", fileName, result);
+    log("close(%d) = %d\n", fd, result);
 
     return result;
 }
@@ -620,7 +628,7 @@ void _exit(int status)
 
     log("_exit(%d)\n", status);
     
-    fflush(logOutput);
+    origin_fflush(logOutput);
 
     origin__exit(status);
 }
@@ -651,16 +659,16 @@ int execl(const char *path, const char *arg, ...)
     }
     va_end(v1);
 
-    log("execl(\"%s\", argv = %s", path, argv[0]);
+    log("execl(\"%s\", argv = \"%s\"", path, argv[0]);
 
     for(i = 1 ; i < argc ; i ++)
     {
-        fprintf(stderr,", %s",argv[i]);
+        fprintf(stderr,", \"%s\"",argv[i]);
     }
 
-    fprintf(stderr,"\n");
+    fprintf(stderr,")\n");
 
-    fflush(logOutput);
+    origin_fflush(logOutput);
     unsetenv("LD_PRELOAD");
 
     int result = origin_execv(path, argv);
@@ -695,22 +703,22 @@ int execle(const char *path, const char *arg, ...)
     char **envp = va_arg(v1,char **);
     va_end(v1);
 
-    log("execle(\"%s\", argv = %s", path, argv[0]);
+    log("execle(\"%s\", argv = \"%s\"", path, argv[0]);
 
     for(i = 1 ; i < argc ; i ++)
     {
-        fprintf(stderr,", %s",argv[i]);
+        fprintf(stderr,", \"%s\"",argv[i]);
     }
 
-    fprintf(stderr,", envp = %s", envp[0]);
+    fprintf(stderr,", envp = \"%s\"", envp[0]);
     for(i = 1 ; envp[i] != NULL ; i ++)
     {
-        fprintf(stderr,", %s",envp[i]);
+        fprintf(stderr,", \"%s\"",envp[i]);
     }
     fprintf(stderr,")\n");
 
 
-    fflush(logOutput);
+    origin_fflush(logOutput);
     unsetenv("LD_PRELOAD");
 
     int result = origin_execve(path, argv, envp);
@@ -743,16 +751,16 @@ int execlp(const char *file, const char *arg, ...)
     }
     va_end(v1);
 
-    log("execlp(\"%s\", argv = %s", file, argv[0]);
+    log("execlp(\"%s\", argv = \"%s\"", file, argv[0]);
 
     for(i = 1 ; i < argc ; i ++)
     {
-        log(", %s",argv[i]);
+        fprintf(stderr,", \"%s\"",argv[i]);
     }
 
-    log(")\n");
+    fprintf(stderr,")\n");
 
-    fflush(logOutput);
+    origin_fflush(logOutput);
     unsetenv("LD_PRELOAD");
 
     int result = origin_execvp(file, argv);
@@ -766,17 +774,17 @@ int execlp(const char *file, const char *arg, ...)
 int execv(const char *path, char *const argv[])
 {
     
-    log("execv(\"%s\", argv = %s", path, argv[0]);
+    log("execv(\"%s\", argv = \"%s\"", path, argv[0]);
 
     int i;
-    for(i = 1 ; i < argc ; i ++)
+    for(i = 1 ; argv[i] != NULL ; i ++)
     {
-        fprintf(stderr,", %s",argv[i]);
+        fprintf(stderr,", \"%s\"",argv[i]);
     }
 
-    fprintf(stderr,"\n");
-    
-    fflush(logOutput);
+    fprintf(stderr,")\n");
+
+    origin_fflush(logOutput);
     unsetenv("LD_PRELOAD");
 
     int result = origin_execv(path,argv);
@@ -788,23 +796,23 @@ int execv(const char *path, char *const argv[])
 int execve(const char *path, char *const argv[], char *const envp[])
 {
 
-    log("execve(\"%s\", argv = %s", path, argv[0]);
+    log("execve(\"%s\", argv = \"%s\"", path, argv[0]);
 
     int i;
-    for(i = 1 ; i < argc ; i ++)
+    for(i = 1 ; argv[i] != NULL ; i ++)
     {
-        fprintf(stderr,", %s",argv[i]);
+        fprintf(stderr,", \"%s\"",argv[i]);
     }
 
-    fprintf(stderr,", envp = %s", envp[0]);
+    fprintf(stderr,", envp = \"%s\"", envp[0]);
     for(i = 1 ; envp[i] != NULL ; i ++)
     {
-        fprintf(stderr,", %s",envp[i]);
+        fprintf(stderr,", \"%s\"",envp[i]);
     }
     fprintf(stderr,")\n");
 
 
-    fflush(logOutput);
+    origin_fflush(logOutput);
     unsetenv("LD_PRELOAD");
 
     int result = origin_execve(path,argv,envp);
@@ -816,17 +824,17 @@ int execve(const char *path, char *const argv[], char *const envp[])
 int execvp(const char *file, char *const argv[])
 {
 
-    log("execvp(\"%s\", argv = %s", file, argv[0]);
+    log("execvp(\"%s\", argv = \"%s\"", file, argv[0]);
 
     int i;
-    for(i = 1 ; i < argc ; i ++)
+    for(i = 1 ; argv[i] != NULL ; i ++)
     {
-        fprintf(stderr,", %s",argv[i]);
+        fprintf(stderr,", \"%s\"",argv[i]);
     }
 
-    fprintf(stderr,"\n");
+    fprintf(stderr,")\n");
 
-    fflush(logOutput);
+    origin_fflush(logOutput);
     unsetenv("LD_PRELOAD");
 
     int result = origin_execvp(file,argv);
@@ -867,7 +875,7 @@ int fchown(int fd, uid_t owner, gid_t group)
 
 pid_t fork(void)
 {
-    fflush(logOutput);
+    origin_fflush(logOutput);
 
     int result = origin_fork();
 
@@ -1227,6 +1235,53 @@ int __lxstat(int ver, const char *path, struct stat *buf)
     off_t     size = buf->st_size; 
 
     log("__lxstat(%d, %s, (inode = %ju , file type and mode = %o , file size = %jd)) = %d\n", ver, path, ino, mode, size, result);
+
+    return result;
+}
+
+void *malloc(size_t size)
+{
+    void *result = origin_malloc(size);
+
+    log("malloc(%zd) = %p\n", size, result);
+
+    return result;
+}
+
+void free(void *ptr)
+{
+    origin_free(ptr);
+
+    log("free(%p)\n", ptr);
+}
+
+void *calloc(size_t nmemb, size_t size)
+{
+    void *result = origin_calloc(nmemb,size);
+
+    log("calloc(%zd, %zd) = %p\n", nmemb, size, result);
+
+    return result;
+}
+
+void *realloc(void *ptr, size_t size)
+{
+    void *result = origin_realloc(ptr,size);
+
+    log("realloc(%p, %zd) = %p\n", ptr, size, result);
+
+    return result;
+}
+
+int fflush(FILE *stream)
+{
+    int result = origin_fflush(stream);
+
+    int fileName[BUF_SIZE];
+    int fileFd = fileno(stream);
+    getFileNameByFd(fileFd, fileName);
+
+    log("fflush(\"%s\") = %d\n", fileName, result);
 
     return result;
 }
