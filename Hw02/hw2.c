@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
@@ -170,10 +171,10 @@ static __attribute__((constructor)) void beforeMain()
                 bindOrigin(__lxstat);
                 bindOrigin(__xstat);
                 bindOrigin(__fxstat);
-                bindOrigin(malloc);
-                bindOrigin(calloc);
-                bindOrigin(realloc);
-                bindOrigin(free);
+                //bindOrigin(malloc);
+                //bindOrigin(calloc);
+                //bindOrigin(realloc);
+                //bindOrigin(free);
                 bindOrigin(fflush);
         }
 
@@ -1241,34 +1242,46 @@ int __lxstat(int ver, const char *path, struct stat *buf)
 
 void *malloc(size_t size)
 {
+    if(origin_malloc == NULL)
+        origin_malloc = dlsym(RTLD_NEXT,"malloc");
+
     void *result = origin_malloc(size);
 
-    log("malloc(%zd) = %p\n", size, result);
+    fprintf(logOutput,"malloc(%zd) = %p\n", size, result);
 
     return result;
 }
 
 void free(void *ptr)
 {
+    if(origin_free == NULL)
+        origin_free = dlsym(RTLD_NEXT,"free");
+    
     origin_free(ptr);
 
-    log("free(%p)\n", ptr);
+    fprintf(logOutput,"free(%p)\n", ptr);
 }
 
 void *calloc(size_t nmemb, size_t size)
 {
+    if(origin_calloc == NULL)
+        origin_calloc = dlsym(RTLD_NEXT,"calloc");
+    
     void *result = origin_calloc(nmemb,size);
 
-    log("calloc(%zd, %zd) = %p\n", nmemb, size, result);
+    fprintf(logOutput,"calloc(%zd, %zd) = %p\n", nmemb, size, result);
 
     return result;
 }
 
 void *realloc(void *ptr, size_t size)
 {
+    if(origin_realloc == NULL)
+        origin_realloc = dlsym(RTLD_NEXT,"realloc");
+
     void *result = origin_realloc(ptr,size);
 
-    log("realloc(%p, %zd) = %p\n", ptr, size, result);
+    fprintf(logOutput,"realloc(%p, %zd) = %p\n", ptr, size, result);
 
     return result;
 }
@@ -1277,7 +1290,7 @@ int fflush(FILE *stream)
 {
     int result = origin_fflush(stream);
 
-    int fileName[BUF_SIZE];
+    char fileName[BUF_SIZE];
     int fileFd = fileno(stream);
     getFileNameByFd(fileFd, fileName);
 
