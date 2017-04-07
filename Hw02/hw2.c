@@ -1243,7 +1243,24 @@ int __lxstat(int ver, const char *path, struct stat *buf)
 void *malloc(size_t size)
 {
     if(origin_malloc == NULL)
+    {
         origin_malloc = dlsym(RTLD_NEXT,"malloc");
+
+        // Set log output .
+        char *outpusDes = origin_getenv("MONITOR_OUTPUT");
+        if(outpusDes)
+        {
+            if(strcmp(outpusDes,"stderr") == 0)
+                logOutput = stderr;
+            else
+                logOutput = fopen(origin_getenv("MONITOR_OUTPUT"),"w");
+        }
+        else
+        {
+            // default to stderr .
+            logOutput = stderr;
+        }
+    }
 
     void *result = origin_malloc(size);
 
@@ -1255,7 +1272,24 @@ void *malloc(size_t size)
 void free(void *ptr)
 {
     if(origin_free == NULL)
+    {
         origin_free = dlsym(RTLD_NEXT,"free");
+
+        // Set log output .
+        char *outpusDes = origin_getenv("MONITOR_OUTPUT");
+        if(outpusDes)
+        {
+            if(strcmp(outpusDes,"stderr") == 0)
+                logOutput = stderr;
+            else
+                logOutput = fopen(origin_getenv("MONITOR_OUTPUT"),"w");
+        }
+        else
+        {
+            // default to stderr .
+            logOutput = stderr;
+        }
+    }
     
     origin_free(ptr);
 
@@ -1265,7 +1299,24 @@ void free(void *ptr)
 void *calloc(size_t nmemb, size_t size)
 {
     if(origin_calloc == NULL)
+    {
         origin_calloc = dlsym(RTLD_NEXT,"calloc");
+
+        // Set log output .
+        char *outpusDes = origin_getenv("MONITOR_OUTPUT");
+        if(outpusDes)
+        {
+            if(strcmp(outpusDes,"stderr") == 0)
+                logOutput = stderr;
+            else
+                logOutput = fopen(origin_getenv("MONITOR_OUTPUT"),"w");
+        }
+        else
+        {
+            // default to stderr .
+            logOutput = stderr;
+        }
+    }
     
     void *result = origin_calloc(nmemb,size);
 
@@ -1277,7 +1328,24 @@ void *calloc(size_t nmemb, size_t size)
 void *realloc(void *ptr, size_t size)
 {
     if(origin_realloc == NULL)
+    {
         origin_realloc = dlsym(RTLD_NEXT,"realloc");
+
+        // Set log output .
+        char *outpusDes = origin_getenv("MONITOR_OUTPUT");
+        if(outpusDes)
+        {
+            if(strcmp(outpusDes,"stderr") == 0)
+                logOutput = stderr;
+            else
+                logOutput = fopen(origin_getenv("MONITOR_OUTPUT"),"w");
+        }
+        else
+        {
+            // default to stderr .
+            logOutput = stderr;
+        }
+    }
 
     void *result = origin_realloc(ptr,size);
 
