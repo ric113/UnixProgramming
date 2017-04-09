@@ -1,4 +1,3 @@
-#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
@@ -21,7 +20,6 @@
 
 FILE* logOutput;
 
-static uid_t (*origin_getuid)(void) = NULL;
 static ssize_t (*origin_write)(int fd,const void *buf,size_t count) = NULL;
 static int (*origin_closedir)(DIR *dirp) = NULL;
 static DIR* (*origin_fdopendir)(int fd) = NULL;
@@ -93,12 +91,10 @@ static int (*origin_mkdir)(const char *pathname, mode_t mode) = NULL;
 static int (*origin_mkfifo)(const char *pathname, mode_t mode) = NULL;
 static int (*origin___xstat)(int ver, const char *path, struct stat *buf) = NULL;
 static mode_t (*origin_umask)(mode_t mask) = NULL;
+
 // others .
-static void *(*origin_malloc)(size_t size) = NULL;
-static void (*origin_free)(void *ptr) = NULL;
-static void *(*origin_calloc)(size_t nmemb, size_t size) = NULL;
-static void *(*origin_realloc)(void *ptr, size_t size) = NULL;
 static int (*origin_fflush)(FILE *stream) = NULL;
+static uid_t (*origin_getuid)(void) = NULL;
 
 
 static __attribute__((constructor)) void beforeMain()
@@ -171,10 +167,6 @@ static __attribute__((constructor)) void beforeMain()
                 bindOrigin(__lxstat);
                 bindOrigin(__xstat);
                 bindOrigin(__fxstat);
-                //bindOrigin(malloc);
-                //bindOrigin(calloc);
-                //bindOrigin(realloc);
-                //bindOrigin(free);
                 bindOrigin(fflush);
         }
 
@@ -1236,120 +1228,6 @@ int __lxstat(int ver, const char *path, struct stat *buf)
     off_t     size = buf->st_size; 
 
     log("__lxstat(%d, %s, (inode = %ju , file type and mode = %o , file size = %jd)) = %d\n", ver, path, ino, mode, size, result);
-
-    return result;
-}
-
-void *malloc(size_t size)
-{
-    if(origin_malloc == NULL)
-    {
-        origin_malloc = dlsym(RTLD_NEXT,"malloc");
-
-        // Set log output .
-        char *outpusDes = origin_getenv("MONITOR_OUTPUT");
-        if(outpusDes)
-        {
-            if(strcmp(outpusDes,"stderr") == 0)
-                logOutput = stderr;
-            else
-                logOutput = fopen(origin_getenv("MONITOR_OUTPUT"),"w");
-        }
-        else
-        {
-            // default to stderr .
-            logOutput = stderr;
-        }
-    }
-
-    void *result = origin_malloc(size);
-
-    fprintf(logOutput,"malloc(%zd) = %p\n", size, result);
-
-    return result;
-}
-
-void free(void *ptr)
-{
-    if(origin_free == NULL)
-    {
-        origin_free = dlsym(RTLD_NEXT,"free");
-
-        // Set log output .
-        char *outpusDes = origin_getenv("MONITOR_OUTPUT");
-        if(outpusDes)
-        {
-            if(strcmp(outpusDes,"stderr") == 0)
-                logOutput = stderr;
-            else
-                logOutput = fopen(origin_getenv("MONITOR_OUTPUT"),"w");
-        }
-        else
-        {
-            // default to stderr .
-            logOutput = stderr;
-        }
-    }
-    
-    origin_free(ptr);
-
-    fprintf(logOutput,"free(%p)\n", ptr);
-}
-
-void *calloc(size_t nmemb, size_t size)
-{
-    if(origin_calloc == NULL)
-    {
-        origin_calloc = dlsym(RTLD_NEXT,"calloc");
-
-        // Set log output .
-        char *outpusDes = origin_getenv("MONITOR_OUTPUT");
-        if(outpusDes)
-        {
-            if(strcmp(outpusDes,"stderr") == 0)
-                logOutput = stderr;
-            else
-                logOutput = fopen(origin_getenv("MONITOR_OUTPUT"),"w");
-        }
-        else
-        {
-            // default to stderr .
-            logOutput = stderr;
-        }
-    }
-    
-    void *result = origin_calloc(nmemb,size);
-
-    fprintf(logOutput,"calloc(%zd, %zd) = %p\n", nmemb, size, result);
-
-    return result;
-}
-
-void *realloc(void *ptr, size_t size)
-{
-    if(origin_realloc == NULL)
-    {
-        origin_realloc = dlsym(RTLD_NEXT,"realloc");
-
-        // Set log output .
-        char *outpusDes = origin_getenv("MONITOR_OUTPUT");
-        if(outpusDes)
-        {
-            if(strcmp(outpusDes,"stderr") == 0)
-                logOutput = stderr;
-            else
-                logOutput = fopen(origin_getenv("MONITOR_OUTPUT"),"w");
-        }
-        else
-        {
-            // default to stderr .
-            logOutput = stderr;
-        }
-    }
-
-    void *result = origin_realloc(ptr,size);
-
-    fprintf(logOutput,"realloc(%p, %zd) = %p\n", ptr, size, result);
 
     return result;
 }
