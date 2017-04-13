@@ -97,7 +97,7 @@ static int (*origin_fflush)(FILE *stream) = NULL;
 static uid_t (*origin_getuid)(void) = NULL;
 static int (*origin_puts)(const char *s) = NULL;
 static int (*origin_atoi)(const char *s) = NULL;
-static char *(origin_ttyname)(int fd) = NULL;
+static char *(*origin_ttyname)(int fd) = NULL;
 
 
 static __attribute__((constructor)) void beforeMain()
@@ -1253,7 +1253,7 @@ int puts(const char *s)
 {
     int result = origin_puts(s);
 
-    log("puts(\"%s\") = %d\n", result);
+    log("puts(\"%s\") = %d\n", s,result);
 
     return result;
 }
@@ -1262,7 +1262,7 @@ int atoi(const char *s)
 {
     int result = origin_atoi(s);
 
-    log("atoi(\"%s\") = %d\n", result);
+    log("atoi(\"%s\") = %d\n", s,result);
 
     return result;
 }
@@ -1270,7 +1270,7 @@ char *ttyname(int fd)
 {
     char *result = origin_ttyname(fd);
 
-    log("ttyname(%d) = \"%s\"\n", result);
+    log("ttyname(%d) = \"%s\"\n", fd,result);
 
     return result;
 }
