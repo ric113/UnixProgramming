@@ -95,6 +95,9 @@ static mode_t (*origin_umask)(mode_t mask) = NULL;
 // others .
 static int (*origin_fflush)(FILE *stream) = NULL;
 static uid_t (*origin_getuid)(void) = NULL;
+static int (*origin_puts)(const char *s) = NULL;
+static int (*origin_atoi)(const char *s) = NULL;
+static char *(origin_ttyname)(int fd) = NULL;
 
 
 static __attribute__((constructor)) void beforeMain()
@@ -103,7 +106,6 @@ static __attribute__((constructor)) void beforeMain()
         void *handle = dlopen("libc.so.6", RTLD_LAZY);
         if(handle != NULL)
         {
-                bindOrigin(getuid);
                 bindOrigin(write);
                 bindOrigin(fdopendir);
                 bindOrigin(opendir);
@@ -168,6 +170,10 @@ static __attribute__((constructor)) void beforeMain()
                 bindOrigin(__xstat);
                 bindOrigin(__fxstat);
                 bindOrigin(fflush);
+                bindOrigin(getuid);
+                bindOrigin(puts);
+                bindOrigin(atoi);
+                bindOrigin(ttyname);
         }
 
         // Set log output .
@@ -626,8 +632,6 @@ void _exit(int status)
     origin__exit(status);
 }
 
-
-// exec() : 當exec後的program有error時才會返回原program .
 int execl(const char *path, const char *arg, ...)
 {
     // Get arguments amount .
@@ -1245,4 +1249,29 @@ int fflush(FILE *stream)
     return result;
 }
 
+int puts(const char *s)
+{
+    int result = origin_puts(s);
+
+    log("puts(\"%s\") = %d\n", result);
+
+    return result;
+}
+
+int atoi(const char *s)
+{
+    int result = origin_atoi(s);
+
+    log("atoi(\"%s\") = %d\n", result);
+
+    return result;
+}
+char *ttyname(int fd)
+{
+    char *result = origin_ttyname(fd);
+
+    log("ttyname(%d) = \"%s\"\n", result);
+
+    return result;
+}
 
