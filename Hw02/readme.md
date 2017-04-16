@@ -6,15 +6,17 @@ In this homework, we are going to practice library injection and API hijacking.W
 
 #### Monitored library calls :<br>
 
-closedir fdopendir opendir readdir readdir_r rewinddir seekdir telldir <br>
-creat open remove rename setbuf setvbuf tempnam tmpfile <br>
-tmpnam exit getenv mkdtemp mkstemp putenv rand rand_r <br> 
-setenv srand system chdir chown close dup dup2 <br>
-_exit execl execle execlp execv execve execvp fchdir <br>
-fchown fork fsync ftruncate getcwd getegid geteuid <br>
-getgid getuid link pipe pread pwrite read readlink <br>
-rmdir setegid seteuid setgid setuid sleep symlink <br>
-unlink write chmod fchmod fstat lstat mkdir mkfifo stat umask
+|||||||||
+|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+|closedir|fdopendir|opendir|readdir|readdir_r|rewinddir|seekdir|telldir|
+|creat|open|remove|rename|setbuf|setvbuf|tempnam|tmpfile|
+|tmpnam|exit|getenv|mkdtemp|mkstemp|putenv|rand|rand_r|
+|setenv|srand|system|chdir|chown|close|dup|dup2|
+|_exit|execl|execle|execlp|execv|execve|execvp|fchdir|
+|fchown|fork|fsync|ftruncate|getcwd|getegid|geteuid|umask|
+|getgid|getuid|link|pipe|pread|pwrite|read|readlink|
+|rmdir|setegid|seteuid|setgid|setuid|sleep|symlink|stat|
+|unlink|write|chmod|fchmod|fstat|lstat|mkdir|mkfifo|
 
 
 #### Notes 
