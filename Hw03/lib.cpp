@@ -3,6 +3,8 @@
 #include <iostream>
 #include <sstream>
 #include <string.h>
+#include <iterator>
+#include <stdio.h>
 
 #include "lib.h"
 

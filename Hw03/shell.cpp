@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <signal.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 
 
 #include "lib.h"
@@ -51,7 +53,6 @@ void executeCmd(Cmd& cmd)
 		char **args = TranVecToCharArr(cmd.args, cmd.command);
 		execvp((cmd.command).c_str(), args);
 	}
-
 }
 
 
@@ -79,31 +80,30 @@ void processCmds(vector<Cmd> &cmdTable, bool isBackground,sigset_t &oldmask)
 		}
 	}
 
-	// Default設定各個Cmd Entry的incodeFd = 0 , outgoFd = 1 ;
 	for(int i = 0 ; i < cmdTable.size() ; i ++)
 	{
 		pid_t pid = fork();
 
 		if(pid == 0)
 		{
-			setpgid(getpid(),pgid);
+			setpgid(0,pgid);
+
       		unblockSigsBeforeExecChild(oldmask);
       		// set stdin stdout .
-      		if(cmdTable[i].incomeFd != 0)
-      		{
-      			dup2(cmdTable[i].incomeFd,0);
-      			close(cmdTable[i].incomeFd);
-      		}
-      		if(cmdTable[i].outgoFd != 1)
-      		{
-      			dup2(cmdTable[i].outgoFd,1);
-      			close(cmdTable[i].outgoFd);
-      		}
-      		// cout << "Cmd :" << cmdTable[i].command << ", stdin :" << cmdTable[i].incomeFd << ", stdout :" << cmdTable[i].outgoFd << endl;
-
+      		
+      		dup2(cmdTable[i].incomeFd,STDIN_FILENO);
+      		dup2(cmdTable[i].outgoFd,STDOUT_FILENO);
+      			
+      		// 若該Line有Pipe, 關閉那些沒用到的Pipe fd => 關掉整個PipeList中紀錄的FD(因為已經把要用的dup到stdin/stdout了!) .
+      		for(int i = 0 ; i < pipeList.size() ; i ++)
+			{
+				closePipe(pipeList[i]);
+			}
+			pipeList.clear();
+      		
       		executeCmd(cmdTable[i]);
 
-      		exit(-1);	// error with exec .
+      		exit(127);	// error with exec (Command not found in $PATH).
 
 		}
 		else if(pid > 0)
@@ -130,22 +130,20 @@ void processCmds(vector<Cmd> &cmdTable, bool isBackground,sigset_t &oldmask)
 		int waitedProcessAmount = cmdTable.size();
 	    while(waitedProcessAmount > 0)
 	    {
-	      int status = -1;
-	      pid_t pid = waitpid(pgid * -1, &status ,WUNTRACED);
+	      int status = 0;
+		  pid_t pid = waitpid(pgid * -1, &status ,WUNTRACED);
 	      if(WIFSTOPPED(status))
 	      {
 	        // stopped_jobs.emplace_back(pgid,wait_count);
+	        
 	        break;
 	      }
-	      
-	      waitedProcessAmount--;
+	     
+	     	waitedProcessAmount--;
 	    }
 	    // change foreground to my pgid
 	    tcsetpgrp(STDIN_FILENO,getpgid(0));
-	    cout << "back to parent" << endl;
-	    
 	}
-
 }
 
 
@@ -176,6 +174,8 @@ int main()
 		cmds.clear();
 		cmdTable.clear();
 		isBackground = false;
+
+		printPrompt();
 
 
 	}
