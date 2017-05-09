@@ -70,7 +70,7 @@ void initCmdTable(vector<Cmd>& cmdTable,vector<string>& cmds)
 	for(int i = 0 ; i < cmdAmount ; i ++)
 	{
 		currentCmd = cmds[i];
-		Cmd tempCmdEntry;
+		Cmd tempCmdEntry = { "", false, 0, 1, vector<string>() };
 		vector<string> tokens = splitWithSpace(currentCmd);
 
 
@@ -81,7 +81,9 @@ void initCmdTable(vector<Cmd>& cmdTable,vector<string>& cmds)
 
 		tempCmdEntry.command = tokens[0];
 		vector<string> args;
-		for(int j = 0 ; j < tokens.size() ; j ++)
+
+		// Start from 1, 也就是不包含command .
+		for(int j = 1 ; j < tokens.size() ; j ++)
 		{
 			if(tokens[j] != "<" && tokens[j] != ">" && tokens[j] != "&")
 				args.push_back(tokens[j]);
@@ -90,6 +92,27 @@ void initCmdTable(vector<Cmd>& cmdTable,vector<string>& cmds)
 
 		cmdTable.push_back(tempCmdEntry);
 	}
+}
+
+char** TranVecToCharArr(vector<string> arg_table ,string cmd)
+{
+    
+    char ** arr = new char*[arg_table.size()+2];
+    arr[0] = new char[cmd.size() + 1];
+    strcpy(arr[0], cmd.c_str());
+    for(int i = 0; i < arg_table.size(); i++){
+        arr[i+1] = new char[arg_table[i].size() + 1];
+        strcpy(arr[i+1], arg_table[i].c_str());
+    }
+    arr[arg_table.size()+1] = NULL;
+    
+    return arr;
+    
+}
+
+void printPrompt()
+{
+	printf("myShell$ ");
 }
 
 
