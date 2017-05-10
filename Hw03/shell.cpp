@@ -7,6 +7,7 @@
 #include <signal.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <errno.h>
 
 
 #include "lib.h"
@@ -15,6 +16,39 @@
 
 using namespace std;
 
+// Global Variables .
+vector<Job> activeJobList;
+vector<Job> stoppedJobList;
+
+void sigcldHandler(int signum)
+{
+	pid_t pid = 0;
+	int status = 0 ;
+
+	do{
+		pid = waitpid ((pid_t)(-1), &status, WNOHANG);
+
+		for(int i = 0 ; i < activeJobList.size() ; i ++)
+		{
+			for(int j = 0 ; j <  activeJobList[i].processList.size() ; j ++)
+			{
+				if(activeJobList[i].processList[j].pid == pid)
+				{
+					if(WIFSTOPPED(status))
+			    		activeJobList[i].processList[j].isStopped = true;
+			    	else
+			    		activeJobList[i].processList[j].isCompleted = true;
+
+			    	cout << "End in BG : "<< activeJobList[i].processList[j].command << endl;
+			    	jobIsCompleted(activeJobList[i]);
+
+			    	break;
+				}
+			}
+		}
+	}while(pid <= 0);
+}
+
 void unblockSigsBeforeExecChild(sigset_t &oldmask)
 {
 	sigprocmask(SIG_SETMASK, &oldmask, NULL);
@@ -22,6 +56,8 @@ void unblockSigsBeforeExecChild(sigset_t &oldmask)
 
 sigset_t initShell()
 {
+	// set SIGCHLD handler .
+	signal(SIGCHLD, sigcldHandler);
 	// block some signals .
 	sigset_t newmask, oldmask;
   	sigemptyset(&newmask);
@@ -38,7 +74,7 @@ void executeCmd(Cmd& cmd)
 {
 	if(cmd.command == "fg")
 	{
-
+		
 	}
 	else if(cmd.command == "bg")
 	{
@@ -55,12 +91,165 @@ void executeCmd(Cmd& cmd)
 	}
 }
 
+void removeJobFromList(vector<Job> &list, Job &job)
+{
+	for(int i = 0 ; i < list.size() ; i ++)
+	{
+		if(list[i].groupId == job.groupId)
+		{
+			list.erase(list.begin() + i);
+			break;
+		}
+	}
+}
+
+Job changeProcessStatus(pid_t pid, Job &job,int status)
+{
+	// cout << "Pid in cPS" << pid << endl;
+	Job tempJob ;
+	
+	if(pid > 0)
+	{
+
+		for(int i = 0 ; i < activeJobList.size() ; i ++)
+		{
+			for(int j = 0 ; j <  activeJobList[i].processList.size() ; j ++)
+			{
+				if(activeJobList[i].processList[j].pid == pid)
+				{
+					if(WIFSTOPPED(status))
+			    		activeJobList[i].processList[j].isStopped = true;
+			    	else
+			    		activeJobList[i].processList[j].isCompleted = true;
+
+			    	tempJob = activeJobList[i];
+			    	break;
+				}
+			}
+		}
+
+		
+		/*
+		for(int i = 0 ; i < job.processList.size() ; i++)
+		{
+			if(job.processList[i].pid == pid)
+			{
+				if(WIFSTOPPED(status))
+		    		job.processList[i].isStopped = true;
+		    	else
+		    		job.processList[i].isCompleted = true;
+		    	// return true;
+		    	break;
+			}
+		}
+		*/
+	}
+
+	return tempJob;
+	/*
+	else if(pid == 0 || errno == ECHILD)
+		return false;
+	else 
+		return false;
+	*/
+
+}
+
+bool jobIsStopped(Job &job)
+{
+	for(int i = 0 ; i < job.processList.size() ; i++)
+	{
+		if(!job.processList[i].isStopped && !job.processList[i].isCompleted)
+			return false;
+	}
+
+	stoppedJobList.push_back(job);
+	return true;
+}
+
+bool jobIsCompleted(Job &job)
+{
+	for(int i = 0 ; i < job.processList.size() ; i++)
+	{
+		if(!job.processList[i].isCompleted)
+			return false;
+	}
+	
+	// free job .
+	job.processList.clear();
+	removeJobFromList(activeJobList,job);
+	removeJobFromList(stoppedJobList,job);
+	
+	return true;
+}
+
+void waitForForegroundJob(Job &job)
+{
+
+	signal(SIGCHLD, SIG_DFL);
+
+	pid_t pid;
+	tcsetpgrp(STDIN_FILENO,job.groupId);
+	int status = 0;
+	bool jobStopped = false;
+	bool jobCompleted = false;
+	Job tempJob;
+
+	// cout << job.processList[0].pid << endl;
+
+	do{
+		// cout << "Befor wapid" << endl;
+		pid = waitpid((pid_t) -1, &status ,WUNTRACED);
+		// cout << "After wait :" <<  pid << endl; 
+		tempJob = changeProcessStatus(pid, job, status);
+
+		if(tempJob.groupId == job.groupId){
+			jobStopped = jobIsStopped(tempJob);
+			jobCompleted = jobIsCompleted(tempJob);
+		}
+		else{
+			jobIsStopped(tempJob);
+			jobIsCompleted(tempJob);
+		}
+
+	}while(!jobStopped && !jobCompleted);
+	/*
+
+	int waitedProcessAmount = job.processCount;
+	while(waitedProcessAmount > 0)
+	{
+	    int status = 0;
+	    // Use the WUNTRACED option so that status is reported for processes that stop as well as processes that terminate. 
+		pid_t pid = waitpid(job.groupId * -1, &status ,WUNTRACED);
+	    if(WIFSTOPPED(status))
+	    {
+	       	
+	       	Job newStoppedJob;
+	       	newStoppedJob.groupId = pgid;
+	       	newStoppedJob.processCount = waitedProcessAmount;
+
+	       	stoppedJobList.push_back() 
+	        break;
+	    }
+	     
+	    waitedProcessAmount--;
+	}
+	
+	// change foreground to my pgid
+	*/
+	tcsetpgrp(STDIN_FILENO,getpgid(0));
+}
+
 
 void processCmds(vector<Cmd> &cmdTable, bool isBackground,sigset_t &oldmask)
 {
+	signal(SIGCHLD, sigcldHandler);
+
 	bool hasPipe = (cmdTable.size() > 1)? true:false;
 	int pgid = 0 ;
 	vector<UnixPipe> pipeList;
+	Job newJob;
+
 
 	if(hasPipe)
 	{
@@ -82,6 +271,38 @@ void processCmds(vector<Cmd> &cmdTable, bool isBackground,sigset_t &oldmask)
 
 	for(int i = 0 ; i < cmdTable.size() ; i ++)
 	{
+		if(hasSpecialCmd(cmdTable[i].command))
+		{
+			if(cmdTable[i].command == "exit")
+			{
+				cout << "[Exit My Shell!]" << endl;
+				exit(0);
+			}
+			else if(cmdTable[i].command == "fg")
+			{
+				if(activeJobList.size() > 0)
+				{
+					if(cmdTable[i].args.size() > 0)
+					{
+						int jobNum = stoi(cmdTable[i].args[0]);
+						waitForForegroundJob(activeJobList[jobNum - 1]);
+					}
+					else
+						waitForForegroundJob(activeJobList[0]);
+				}
+			}
+			else if(cmdTable[i].command == "bg")
+			{
+				if(stoppedJobList.size() > 0)
+				{
+					Job wakedJob = stoppedJobList[0];
+					kill(wakedJob.groupId * -1,SIGCONT);
+				}
+			}
+
+			return;
+		}
+		
 		pid_t pid = fork();
 
 		if(pid == 0)
@@ -89,6 +310,7 @@ void processCmds(vector<Cmd> &cmdTable, bool isBackground,sigset_t &oldmask)
 			setpgid(0,pgid);
 
       		unblockSigsBeforeExecChild(oldmask);
+      		signal(SIGCHLD, SIG_DFL);
       		// set stdin stdout .
       		
       		dup2(cmdTable[i].incomeFd,STDIN_FILENO);
@@ -103,6 +325,7 @@ void processCmds(vector<Cmd> &cmdTable, bool isBackground,sigset_t &oldmask)
       		
       		executeCmd(cmdTable[i]);
 
+      		cout << "[Unknown Command : "<< cmdTable[i].command << "]" << endl;
       		exit(127);	// error with exec (Command not found in $PATH).
 
 		}
@@ -112,9 +335,16 @@ void processCmds(vector<Cmd> &cmdTable, bool isBackground,sigset_t &oldmask)
         		pgid = pid;
       		}
       		// set pgid for child .
+      		cmdTable[i].pid = pid;
       		setpgid(pid,pgid);
+
 		}
 	}
+
+	newJob.groupId = pgid;
+	newJob.processCount = cmdTable.size();
+	newJob.processList = cmdTable;
+	activeJobList.push_back(newJob);
 
 	// close pipes , reset pipe List .
 	for(int i = 0 ; i < pipeList.size() ; i ++)
@@ -125,24 +355,7 @@ void processCmds(vector<Cmd> &cmdTable, bool isBackground,sigset_t &oldmask)
 	
 	if(!isBackground)
 	{
-		tcsetpgrp(STDIN_FILENO,pgid);
-
-		int waitedProcessAmount = cmdTable.size();
-	    while(waitedProcessAmount > 0)
-	    {
-	      int status = 0;
-		  pid_t pid = waitpid(pgid * -1, &status ,WUNTRACED);
-	      if(WIFSTOPPED(status))
-	      {
-	        // stopped_jobs.emplace_back(pgid,wait_count);
-	        
-	        break;
-	      }
-	     
-	     	waitedProcessAmount--;
-	    }
-	    // change foreground to my pgid
-	    tcsetpgrp(STDIN_FILENO,getpgid(0));
+		waitForForegroundJob(newJob);
 	}
 }
 
@@ -159,10 +372,12 @@ int main()
 
 	while(getline(cin,line))
 	{
-		
+		cout << "active Job # : "<<activeJobList.size() << endl;
+		cout << "suspend Job # : "<<stoppedJobList.size() << endl;
+
 		if(line.find("&") != string::npos){
 			isBackground = true;
-			cout << "Is bg line!" << endl;
+			// cout << "Is bg line!" << endl;
 		}
 
 		parseInputLine(line,"|",cmds);

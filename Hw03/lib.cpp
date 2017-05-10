@@ -72,7 +72,7 @@ void initCmdTable(vector<Cmd>& cmdTable,vector<string>& cmds)
 	for(int i = 0 ; i < cmdAmount ; i ++)
 	{
 		currentCmd = cmds[i];
-		Cmd tempCmdEntry = { "", false, 0, 1, vector<string>() };
+		Cmd tempCmdEntry = { "", false,0 ,0 , 1, false, false, vector<string>() };
 		vector<string> tokens = splitWithSpace(currentCmd);
 
 
@@ -110,6 +110,13 @@ char** TranVecToCharArr(vector<string> arg_table ,string cmd)
     
     return arr;
     
+}
+
+bool hasSpecialCmd(string cmd)
+{
+	if(cmd == "fg" || cmd == "bg" || cmd == "exit")
+		return true;
+	return false;
 }
 
 void printPrompt()
