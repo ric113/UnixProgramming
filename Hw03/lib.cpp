@@ -5,6 +5,7 @@
 #include <string.h>
 #include <iterator>
 #include <stdio.h>
+#include <glob.h>
 
 #include "lib.h"
 
@@ -110,6 +111,24 @@ char** TranVecToCharArr(vector<string> arg_table ,string cmd)
     
     return arr;
     
+}
+
+vector<string> expandArgs(vector<string> &args)
+{
+	glob_t globbuf;
+	vector<string> result;
+
+	for(int i = 0 ; i < args.size() ; i ++)
+	{
+		glob(args[i].c_str(), GLOB_NOCHECK, NULL, &globbuf);
+	     for(int j = 0 ; j < globbuf.gl_pathc ; j++)
+	     {
+	       result.push_back(globbuf.gl_pathv[j]);
+	    }
+      	globfree(&globbuf);
+	}
+
+	return result;
 }
 
 bool hasSpecialCmd(string cmd)

@@ -74,7 +74,8 @@ sigset_t initShell()
 
 void executeCmd(Cmd& cmd)
 {
-	char **args = TranVecToCharArr(cmd.args, cmd.command);
+	vector<string> expandedArgs = expandArgs(cmd.args);
+	char **args = TranVecToCharArr(expandedArgs, cmd.command);
 	execvp((cmd.command).c_str(), args);
 }
 

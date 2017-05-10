@@ -13,3 +13,4 @@ void executeCmd(Cmd&);
 Job changeProcessStatus(pid_t,Job&,int);
 bool jobIsStopped(Job&);
 bool jobIsCompleted(Job&);
+

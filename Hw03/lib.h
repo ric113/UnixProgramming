@@ -29,7 +29,9 @@ void showCmdsVector(vector<string>&);
 void showCmdTable(vector<Cmd>&);
 vector<string> splitWithSpace(const string&);
 char** TranVecToCharArr(vector<string>,string);
+vector<string> expandArgs(vector<string>&);
 bool hasSpecialCmd(string);
 void printPrompt();
 
 #endif 	/* Def lib.h */
+

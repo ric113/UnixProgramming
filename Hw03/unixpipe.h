@@ -9,3 +9,4 @@ typedef struct _unixpipe{
 void createPipe(UnixPipe&);
 void closePipe(UnixPipe&);
 #endif
+
