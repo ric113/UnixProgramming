@@ -26,7 +26,7 @@ void sigcldHandler(int signum)
 	int status = 0 ;
 
 	do{
-		pid = waitpid ((pid_t)(-1), &status, WNOHANG);
+		pid = waitpid ((pid_t)(-1), &status, WNOHANG | WUNTRACED);
 
 		for(int i = 0 ; i < activeJobList.size() ; i ++)
 		{
@@ -39,13 +39,15 @@ void sigcldHandler(int signum)
 			    	else
 			    		activeJobList[i].processList[j].isCompleted = true;
 
-			    	cout << "End in BG : "<< activeJobList[i].processList[j].command << endl;
+			    	// cout << "End in BG : "<< activeJobList[i].processList[j].command << endl;
+			    	jobIsStopped(activeJobList[i]);
 			    	jobIsCompleted(activeJobList[i]);
-
+					
 			    	break;
 				}
 			}
 		}
+		
 	}while(pid <= 0);
 }
 
@@ -72,23 +74,8 @@ sigset_t initShell()
 
 void executeCmd(Cmd& cmd)
 {
-	if(cmd.command == "fg")
-	{
-		
-	}
-	else if(cmd.command == "bg")
-	{
-
-	}
-	else if(cmd.command == "exit")
-	{
-		exit(0);
-	}
-	else
-	{
-		char **args = TranVecToCharArr(cmd.args, cmd.command);
-		execvp((cmd.command).c_str(), args);
-	}
+	char **args = TranVecToCharArr(cmd.args, cmd.command);
+	execvp((cmd.command).c_str(), args);
 }
 
 void removeJobFromList(vector<Job> &list, Job &job)
@@ -162,7 +149,7 @@ bool jobIsStopped(Job &job)
 		if(!job.processList[i].isStopped && !job.processList[i].isCompleted)
 			return false;
 	}
-
+	cout << "Push pack!" << endl;
 	stoppedJobList.push_back(job);
 	return true;
 }
@@ -212,6 +199,7 @@ void waitForForegroundJob(Job &job)
 			jobIsCompleted(tempJob);
 		}
 
+
 	}while(!jobStopped && !jobCompleted);
 	/*
 
@@ -250,6 +238,10 @@ void processCmds(vector<Cmd> &cmdTable, bool isBackground,sigset_t &oldmask)
 	vector<UnixPipe> pipeList;
 	Job newJob;
 
+	// Press return key only .
+	if(cmdTable.size() == 0)
+		return;
+
 
 	if(hasPipe)
 	{
@@ -284,7 +276,7 @@ void processCmds(vector<Cmd> &cmdTable, bool isBackground,sigset_t &oldmask)
 				{
 					if(cmdTable[i].args.size() > 0)
 					{
-						int jobNum = stoi(cmdTable[i].args[0]);
+						int jobNum = atoi(cmdTable[i].args[0].c_str());
 						waitForForegroundJob(activeJobList[jobNum - 1]);
 					}
 					else
@@ -295,7 +287,9 @@ void processCmds(vector<Cmd> &cmdTable, bool isBackground,sigset_t &oldmask)
 			{
 				if(stoppedJobList.size() > 0)
 				{
-					Job wakedJob = stoppedJobList[0];
+					Job wakedJob = stoppedJobList[stoppedJobList.size() - 1];
+					stoppedJobList.pop_back();
+					cout << stoppedJobList.size() << endl;
 					kill(wakedJob.groupId * -1,SIGCONT);
 				}
 			}
@@ -372,19 +366,28 @@ int main()
 
 	while(getline(cin,line))
 	{
+		/*
 		cout << "active Job # : "<<activeJobList.size() << endl;
 		cout << "suspend Job # : "<<stoppedJobList.size() << endl;
-
+		for(int i = 0 ; i < stoppedJobList.size() ; i ++)
+		{
+			cout << stoppedJobList[i].groupId << endl;
+		}
+		*/
+	
 		if(line.find("&") != string::npos){
 			isBackground = true;
 			// cout << "Is bg line!" << endl;
 		}
 
 		parseInputLine(line,"|",cmds);
+		
 		// showCmdsVector(cmds);
 		initCmdTable(cmdTable,cmds);
+		
 		// showCmdTable(cmdTable);
 		processCmds(cmdTable, isBackground, oldmask);
+		
 
 		cmds.clear();
 		cmdTable.clear();
