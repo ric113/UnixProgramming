@@ -26,7 +26,6 @@ void showCmdsVector(vector<string> &cmds)
 
 void showCmdTable(vector<Cmd> &cmdTable)
 {
-	cout << "Yo!" << endl;
 	vector<Cmd>::iterator it = cmdTable.begin();
 	while(it != cmdTable.end())
 	{
@@ -195,6 +194,8 @@ void printPrompt()
 {
 	printf("myShell$ ");
 }
+
+
 
 
 

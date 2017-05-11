@@ -34,5 +34,11 @@ bool hasSpecialCmd(string);
 void processRedirectBracket(Cmd&,vector<string>&);
 void printPrompt();
 
+void unblockSigsBeforeExecChild(sigset_t&);
+void removeJobFromList(vector<Job>&, Job&);
+Job changeProcessStatus(pid_t,Job&,int);
+bool jobIsStopped(Job&);
+bool jobIsCompleted(Job&);
+
 #endif 	/* Def lib.h */
 

@@ -10,7 +10,6 @@
 #include <errno.h>
 #include <map>
 
-
 #include "lib.h"
 #include "shell.h"
 #include "unixpipe.h"
@@ -43,9 +42,8 @@ void sigcldHandler(int signum)
 			    	else
 			    		activeJobList[i].processList[j].isCompleted = true;
 
-			    	// cout << "End in BG : "<< activeJobList[i].processList[j].command << endl;
-			    	jobIsStopped(activeJobList[i]);
-			    	jobIsCompleted(activeJobList[i]);
+			    	updateAllJobLists(activeJobList[i]);
+			    	
 					
 			    	break;
 				}
@@ -53,6 +51,41 @@ void sigcldHandler(int signum)
 		}
 		
 	}while(pid <= 0);
+}
+
+void updateAllJobLists(Job &job)
+{
+	
+	if(jobIsStopped(job))
+	{
+		addJobToStoppedList(job);
+	}
+
+	if(jobIsCompleted(job))
+	{
+		// free job .
+		job.processList.clear();
+		removeJobFromActiveList(job);
+		removeJobFromStoppedList(job);
+  	}
+}
+
+void addJobToActiveList(Job &job)
+{
+	activeJobList.push_back(job);
+}
+
+void addJobToStoppedList(Job &job)
+{
+	stoppedJobList.push_back(job);
+}
+void removeJobFromActiveList(Job &job)
+{
+	removeJobFromList(activeJobList,job);
+}
+void removeJobFromStoppedList(Job &job)
+{
+	removeJobFromList(stoppedJobList,job);
 }
 
 void unblockSigsBeforeExecChild(sigset_t &oldmask)
@@ -95,9 +128,10 @@ void removeJobFromList(vector<Job> &list, Job &job)
 	}
 }
 
-Job changeProcessStatus(pid_t pid, Job &job,int status)
+
+// Change [pid]'s status(isStopped / isCompleted), and return the job it belongs to .
+Job changeProcessStatus(pid_t pid,int status)
 {
-	// cout << "Pid in cPS" << pid << endl;
 	Job tempJob ;
 	
 	if(pid > 0)
@@ -109,10 +143,12 @@ Job changeProcessStatus(pid_t pid, Job &job,int status)
 			{
 				if(activeJobList[i].processList[j].pid == pid)
 				{
+					
 					if(WIFSTOPPED(status))
 			    		activeJobList[i].processList[j].isStopped = true;
 			    	else
 			    		activeJobList[i].processList[j].isCompleted = true;
+
 
 			    	tempJob = activeJobList[i];
 			    	break;
@@ -120,31 +156,9 @@ Job changeProcessStatus(pid_t pid, Job &job,int status)
 			}
 		}
 
-		
-		/*
-		for(int i = 0 ; i < job.processList.size() ; i++)
-		{
-			if(job.processList[i].pid == pid)
-			{
-				if(WIFSTOPPED(status))
-		    		job.processList[i].isStopped = true;
-		    	else
-		    		job.processList[i].isCompleted = true;
-		    	// return true;
-		    	break;
-			}
-		}
-		*/
 	}
 
 	return tempJob;
-	/*
-	else if(pid == 0 || errno == ECHILD)
-		return false;
-	else 
-		return false;
-	*/
-
 }
 
 bool jobIsStopped(Job &job)
@@ -154,7 +168,6 @@ bool jobIsStopped(Job &job)
 		if(!job.processList[i].isStopped && !job.processList[i].isCompleted)
 			return false;
 	}
-	stoppedJobList.push_back(job);
 	return true;
 }
 
@@ -165,14 +178,9 @@ bool jobIsCompleted(Job &job)
 		if(!job.processList[i].isCompleted)
 			return false;
 	}
-	
-	// free job .
-	job.processList.clear();
-	removeJobFromList(activeJobList,job);
-	removeJobFromList(stoppedJobList,job);
-	
 	return true;
 }
+
 
 void waitForForegroundJob(Job &job)
 {
@@ -186,49 +194,30 @@ void waitForForegroundJob(Job &job)
 	bool jobCompleted = false;
 	Job tempJob;
 
-	// cout << job.processList[0].pid << endl;
-
 	do{
-		// cout << "Befor wapid" << endl;
-		pid = waitpid((pid_t) -1, &status ,WUNTRACED);
-		// cout << "After wait :" <<  pid << endl; 
-		tempJob = changeProcessStatus(pid, job, status);
+		// Wait for "ALL" pid, 因為此Func第一行有SIG_DFL, 若有先後上執行順序的問題可能會造成非這個[job]的process沒人處理,
+		// 所以只好由這邊來處理 . 
+		pid = waitpid((pid_t) -1, &status ,WUNTRACED);	
+		// tempJob 即這個Process所屬的Job .
+		tempJob = changeProcessStatus(pid, status);
 
-		if(tempJob.groupId == job.groupId){
+		// [job]等於這個Process所屬的Job(tempJob) , 並存下回傳的結果(jobStopped/jobCompleted) .
+		if(tempJob.groupId == job.groupId)
+		{
 			jobStopped = jobIsStopped(tempJob);
 			jobCompleted = jobIsCompleted(tempJob);
 		}
-		else{
+		else // 處理非目前focus的[job] .
+		{
 			jobIsStopped(tempJob);
 			jobIsCompleted(tempJob);
 		}
 
-
-	}while(!jobStopped && !jobCompleted);
-	/*
-
-	int waitedProcessAmount = job.processCount;
-	while(waitedProcessAmount > 0)
-	{
-	    int status = 0;
-	    // Use the WUNTRACED option so that status is reported for processes that stop as well as processes that terminate. 
-		pid_t pid = waitpid(job.groupId * -1, &status ,WUNTRACED);
-	    if(WIFSTOPPED(status))
-	    {
-	       	
-	       	Job newStoppedJob;
-	       	newStoppedJob.groupId = pgid;
-	       	newStoppedJob.processCount = waitedProcessAmount;
-
-	       	stoppedJobList.push_back() 
-	        break;
-	    }
-	     
-	    waitedProcessAmount--;
-	}
+		updateAllJobLists(tempJob);
 	
-	// change foreground to my pgid
-	*/
+	}while(!jobStopped && !jobCompleted);
+	
+	// change foreground to my pgid .
 	tcsetpgrp(STDIN_FILENO,getpgid(0));
 }
 
@@ -260,8 +249,6 @@ void processCmds(vector<Cmd> &cmdTable, bool isBackground,sigset_t &oldmask)
 
 			cmdTable[i].outgoFd = newPipe.pipeEnterFd;
 			cmdTable[i+1].incomeFd = newPipe.pipeExitFd;
-
-			// cout << "Cmd " << i << " : stdin - " <<  cmdTable[i].incomeFd << ", stdout - " << cmdTable[i].outgoFd << endl;
 		}
 	}
 
@@ -294,7 +281,6 @@ void processCmds(vector<Cmd> &cmdTable, bool isBackground,sigset_t &oldmask)
 				{
 					Job wakedJob = stoppedJobList[stoppedJobList.size() - 1];
 					stoppedJobList.pop_back();
-					// cout << stoppedJobList.size() << endl;
 					kill(wakedJob.groupId * -1,SIGCONT);
 				}
 			}
@@ -331,13 +317,12 @@ void processCmds(vector<Cmd> &cmdTable, bool isBackground,sigset_t &oldmask)
 
 		if(pid == 0)
 		{
+			// 設定自己的group id = pgid .
 			setpgid(0,pgid);
 
+      		// Reset一些Parent(shell process)的設定 .
       		unblockSigsBeforeExecChild(oldmask);
       		signal(SIGCHLD, SIG_DFL);
-      		
-      		// set stdin stdout .
-      		// set redirect (if)
       		
       		dup2(cmdTable[i].incomeFd,STDIN_FILENO);
       		dup2(cmdTable[i].outgoFd,STDOUT_FILENO);
@@ -408,6 +393,7 @@ int main()
 
 	while(getline(cin,line))
 	{
+		
 		/*
 		cout << "active Job # : "<<activeJobList.size() << endl;
 		cout << "suspend Job # : "<<stoppedJobList.size() << endl;
@@ -416,17 +402,14 @@ int main()
 			cout << stoppedJobList[i].groupId << endl;
 		}
 		*/
+		
 	
 		if(line.find("&") != string::npos)
 			isBackground = true;
 		
 
 		parseInputLine(line,"|",cmds);
-		
-		// showCmdsVector(cmds);
 		initCmdTable(cmdTable,cmds);
-		
-		// showCmdTable(cmdTable);
 		processCmds(cmdTable, isBackground, oldmask);
 		
 
@@ -435,7 +418,5 @@ int main()
 		isBackground = false;
 
 		printPrompt();
-
-
 	}
 }
