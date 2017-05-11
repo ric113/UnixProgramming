@@ -8,17 +8,21 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <errno.h>
+#include <map>
 
 
 #include "lib.h"
 #include "shell.h"
 #include "unixpipe.h"
 
+#define CHAR_BUF_SIZE 256
+
 using namespace std;
 
 // Global Variables .
 vector<Job> activeJobList;
 vector<Job> stoppedJobList;
+map<string,string> envVariables;
 
 void sigcldHandler(int signum)
 {
@@ -150,7 +154,6 @@ bool jobIsStopped(Job &job)
 		if(!job.processList[i].isStopped && !job.processList[i].isCompleted)
 			return false;
 	}
-	cout << "Push pack!" << endl;
 	stoppedJobList.push_back(job);
 	return true;
 }
@@ -277,7 +280,8 @@ void processCmds(vector<Cmd> &cmdTable, bool isBackground,sigset_t &oldmask)
 				{
 					if(cmdTable[i].args.size() > 0)
 					{
-						int jobNum = atoi(cmdTable[i].args[0].c_str());
+						int jobNum ;
+						sscanf(cmdTable[i].args[0].c_str(),"%%%d",&jobNum);
 						waitForForegroundJob(activeJobList[jobNum - 1]);
 					}
 					else
@@ -290,8 +294,33 @@ void processCmds(vector<Cmd> &cmdTable, bool isBackground,sigset_t &oldmask)
 				{
 					Job wakedJob = stoppedJobList[stoppedJobList.size() - 1];
 					stoppedJobList.pop_back();
-					cout << stoppedJobList.size() << endl;
+					// cout << stoppedJobList.size() << endl;
 					kill(wakedJob.groupId * -1,SIGCONT);
+				}
+			}
+			else if(cmdTable[i].command == "export")
+			{
+				char name[CHAR_BUF_SIZE],value[CHAR_BUF_SIZE];
+				sscanf(cmdTable[i].args[0].c_str(),"%[^=]=%s",name,value);
+				setenv(name, value, 1);
+				envVariables[name] = value;
+
+			}
+			else if(cmdTable[i].command == "unset")
+			{
+				unsetenv(cmdTable[i].args[0].c_str());
+				envVariables.erase(cmdTable[i].args[0].c_str());
+			}
+			else if(cmdTable[i].command == "printenv")
+			{
+				if(cmdTable[i].args.size() > 0)
+				{
+					cout << cmdTable[i].args[0] << "=" << envVariables[cmdTable[i].args[0]] << endl;
+				}
+				else
+				{
+					for (map<string,string>::iterator it=envVariables.begin(); it!=envVariables.end(); ++it)
+    					cout << it->first << "=" << it->second << endl;
 				}
 			}
 
@@ -306,7 +335,9 @@ void processCmds(vector<Cmd> &cmdTable, bool isBackground,sigset_t &oldmask)
 
       		unblockSigsBeforeExecChild(oldmask);
       		signal(SIGCHLD, SIG_DFL);
+      		
       		// set stdin stdout .
+      		// set redirect (if)
       		
       		dup2(cmdTable[i].incomeFd,STDIN_FILENO);
       		dup2(cmdTable[i].outgoFd,STDOUT_FILENO);
@@ -329,9 +360,19 @@ void processCmds(vector<Cmd> &cmdTable, bool isBackground,sigset_t &oldmask)
 			if(pgid == 0){
         		pgid = pid;
       		}
+
       		// set pgid for child .
       		cmdTable[i].pid = pid;
       		setpgid(pid,pgid);
+
+      		// if has open file(Redirect), close .
+      		if(cmdTable[i].isRedirectBracket)
+      		{
+      			if(cmdTable[i].outgoFd != STDOUT_FILENO)
+      				close(cmdTable[i].outgoFd);
+      			if(cmdTable[i].incomeFd != STDIN_FILENO)
+      				close(cmdTable[i].incomeFd);
+      		}
 
 		}
 	}
@@ -376,10 +417,9 @@ int main()
 		}
 		*/
 	
-		if(line.find("&") != string::npos){
+		if(line.find("&") != string::npos)
 			isBackground = true;
-			// cout << "Is bg line!" << endl;
-		}
+		
 
 		parseInputLine(line,"|",cmds);
 		

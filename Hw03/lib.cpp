@@ -6,6 +6,9 @@
 #include <iterator>
 #include <stdio.h>
 #include <glob.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 #include "lib.h"
 
@@ -64,6 +67,51 @@ void parseInputLine(const string &s, string delim,vector<string> &cmds)
 
 }
 
+void processRedirectBracket(Cmd &cmd, vector<string> &tokens)
+{
+	vector<string> args;
+	bool encounterBracket = false;
+	string outFilename, inFilename;
+	int inFileFd, outFileFd;
+
+	for(int j = 1 ; j < tokens.size() ; j ++)
+	{
+		if(tokens[j] == "&")
+			break;
+
+		if(tokens[j] == "<" || tokens[j] == ">")
+		{
+			encounterBracket = true;
+
+			if(tokens[j] == "<")
+			{
+				inFilename = tokens[j + 1];
+
+				inFileFd = open(inFilename.c_str(),O_RDONLY);
+				cmd.incomeFd = inFileFd;
+
+			}
+			else if(tokens[j] == ">")
+			{
+				outFilename = tokens[j + 1];
+
+				outFileFd = open(outFilename.c_str(),O_WRONLY|O_CREAT,0666);
+				cmd.outgoFd = outFileFd;
+
+			}
+
+			j ++ ;
+		}
+		else if(!encounterBracket && tokens[j] != "<" && tokens[j] != ">")
+		{
+			args.push_back(tokens[j]);
+		}
+		
+	}
+
+	cmd.args = args;
+}
+
 void initCmdTable(vector<Cmd>& cmdTable,vector<string>& cmds)
 {
 	int cmdAmount = cmds.size();
@@ -75,23 +123,28 @@ void initCmdTable(vector<Cmd>& cmdTable,vector<string>& cmds)
 		currentCmd = cmds[i];
 		Cmd tempCmdEntry = { "", false,0 ,0 , 1, false, false, vector<string>() };
 		vector<string> tokens = splitWithSpace(currentCmd);
+		tempCmdEntry.command = tokens[0];
 
 
 		if(currentCmd.find("<") != string::npos || currentCmd.find(">") != string::npos)
+		{
 			tempCmdEntry.isRedirectBracket = true;
+			processRedirectBracket(tempCmdEntry,tokens);
+		}
 		else 
+		{
 			tempCmdEntry.isRedirectBracket = false;
 
-		tempCmdEntry.command = tokens[0];
-		vector<string> args;
+			vector<string> args;
 
-		// Start from 1, 也就是不包含command .
-		for(int j = 1 ; j < tokens.size() ; j ++)
-		{
-			if(tokens[j] != "<" && tokens[j] != ">" && tokens[j] != "&")
-				args.push_back(tokens[j]);
+			// Start from 1, 也就是不包含command .
+			for(int j = 1 ; j < tokens.size() ; j ++)
+			{
+				if(tokens[j] != "<" && tokens[j] != ">" && tokens[j] != "&")
+					args.push_back(tokens[j]);
+			}
+			tempCmdEntry.args = args;
 		}
-		tempCmdEntry.args = args;
 
 		cmdTable.push_back(tempCmdEntry);
 	}
@@ -133,7 +186,7 @@ vector<string> expandArgs(vector<string> &args)
 
 bool hasSpecialCmd(string cmd)
 {
-	if(cmd == "fg" || cmd == "bg" || cmd == "exit")
+	if(cmd == "fg" || cmd == "bg" || cmd == "exit" || cmd == "export" || cmd == "printenv" || cmd == "unset")
 		return true;
 	return false;
 }

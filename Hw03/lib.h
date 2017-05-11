@@ -31,6 +31,7 @@ vector<string> splitWithSpace(const string&);
 char** TranVecToCharArr(vector<string>,string);
 vector<string> expandArgs(vector<string>&);
 bool hasSpecialCmd(string);
+void processRedirectBracket(Cmd&,vector<string>&);
 void printPrompt();
 
 #endif 	/* Def lib.h */

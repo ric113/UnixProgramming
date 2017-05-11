@@ -1,3 +1,6 @@
+#ifndef __SHELL_H__
+#define __SHELL_H__
+
 #include <signal.h>
 
 #include "lib.h"
@@ -14,3 +17,4 @@ Job changeProcessStatus(pid_t,Job&,int);
 bool jobIsStopped(Job&);
 bool jobIsCompleted(Job&);
 
+#endif 	/* Def shell.h */
