@@ -145,11 +145,12 @@ myshell$ bg
 		- tcsetpgrp(STDIN_FILENO,job.groupId), 也就是將terminal的STDIN_FILENO交給該Job .
 	- 3. 使用一個迴圈不停地接收該Job中process的exit status, 終止條件為: 當該Job Stop了或該Job Complete了 .
 
-``` C++
-do{
-	...
-}while(!jobStopped && !jobCompleted);
-```
+	``` C++
+	do{
+		...
+	}while(!jobStopped && !jobCompleted);
+	```
+
 
 	- 4. 每當接收到一個Process的exit status, 會依據Pid去查找這個Process是屬於哪個Job, 並且Uddate該Process的Command資訊(isStopped/isCompleted)
 		- 這邊要特別注意, 因為是設定wait for all prcoess(也就是waitpid的第一個參數是 -1), 因此每次接收到一個process的exit status, 需要判斷是不是目前正在監控的Job(也就是和參數中的Job相同).
