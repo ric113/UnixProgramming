@@ -37,6 +37,7 @@ void sigcldHandler(int signum)
 			{
 				if(activeJobList[i].processList[j].pid == pid)
 				{
+					
 					if(WIFSTOPPED(status))
 			    		activeJobList[i].processList[j].isStopped = true;
 			    	else
