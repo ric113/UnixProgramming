@@ -58,22 +58,17 @@ restart:
 		case 0x0a:
 		case KEY_ENTER:
 			updateLegalPoints();
-			// has legal point ?
-			// 
-			if(turn == -1){
-				board[cy][cx] = PLAYER2;
+			if(hasLegalPoints()){
+				board[cy][cx] = turn;
+				// 注意, 在board D.S. 上的x是顯示板的y , y是顯示板的x .
+				turnChess(cy, cx);
+				draw_cursor(cx, cy, 1);
+				draw_score();
+				draw_board();
+				refresh();
+	  			turn *= -1;
+				resetLegalPoints();
 			}
-			else{
-				board[cy][cx] = PLAYER1;
-			}
-			turnChess(cy, cx);
-			draw_cursor(cx, cy, 1);
-			draw_score();
-			draw_board();
-			refresh();
-  			turn *= -1;
-			freeBoards();
-			
 			break;
 		case 'q':
 		case 'Q':

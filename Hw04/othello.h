@@ -30,9 +30,10 @@ void draw_board();
 void draw_score();
 
 void updateLegalPoints();
-void freeBoards();
+void resetLegalPoints();
 bool outOfBoard(int x, int y);
 void turnChess(int x, int y);
+bool hasLegalPoints();
 
 
 #endif	/* __OTHELLO_H__ */

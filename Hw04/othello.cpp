@@ -170,7 +170,7 @@ bool outOfBoard(int x, int y){
 	return false;
 }
 
-void freeBoards(){
+void resetLegalPoints(){
 	/*
 	map<int, int**>::iterator it = legalPoints.begin();
 
@@ -212,19 +212,15 @@ void updateLegalPoints(){
 						// cout << currentX << " "<<currentY << "|";
 						currentX += Directions[k][0];
 						currentY += Directions[k][1];
-						if(outOfBoard(currentX,currentY))
-							break;
 						// cout << tempBoard[currentX][currentY] << ",";
 						// tempBoard[currentX][currentY] = turn;
 						// cout << currentX << " "<<currentY << ", ";
-					}while(board[currentX][currentY] != turn && !outOfBoard(currentX, currentY));
+					}while(board[currentX][currentY] != turn && !outOfBoard(currentX, currentY) && board[currentX][currentY] != 0);
 					
-					if(!outOfBoard(currentX,currentY)){
+					if(!outOfBoard(currentX,currentY) && board[currentX][currentY] != 0){
 						isLegalPoint = true;
 						break;
-					} else{
-						// copy(&recordBoard[0][0], &recordBoard[0][0]+BOARDSZ*BOARDSZ,&tempBoard[0][0]);
-					}
+					} 
 					
 					
 				}
@@ -253,7 +249,7 @@ void updateLegalPoints(){
 	}
 
 	for(int i = 0 ; i < legalPoints.size() ; i ++){
-		// cout << (legalPoints[i])/8 <<" "<< (legalPoints[i])%8 << ",";
+		cout << (legalPoints[i])/8 <<" "<< (legalPoints[i])%8 << ",";
 	}
 
 	
@@ -285,9 +281,9 @@ void turnChess(int x, int y){
 			// cout << currentX << "," << currentY << endl;
 			currentX += Directions[i][0];
 			currentY += Directions[i][1];
-		}while(board[currentX][currentY] != turn && !outOfBoard(currentX, currentY));
+		}while(board[currentX][currentY] != turn && !outOfBoard(currentX, currentY) && board[currentX][currentY] != 0);
 
-		if(!outOfBoard(currentX,currentY)){
+		if(!outOfBoard(currentX,currentY) && board[currentX][currentY] != 0 ){
 			do{
 				
 				currentX -= Directions[i][0];
@@ -298,5 +294,9 @@ void turnChess(int x, int y){
 		}
 
 	}
+}
+
+bool hasLegalPoints(){
+	return legalPoints.size() > 0;
 }
 
