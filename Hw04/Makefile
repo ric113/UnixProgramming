@@ -5,7 +5,7 @@ PROGS	= sample
 
 all: $(PROGS)
 
-sample: sample.o othello.o
+sample: sample.o othello.o socket.o
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 %.o: %.cpp
