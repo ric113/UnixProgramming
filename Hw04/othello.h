@@ -34,6 +34,7 @@ void resetLegalPoints();
 bool outOfBoard(int x, int y);
 void turnChess(int x, int y);
 bool hasLegalPoints();
+bool isLegalPoint(int x, int y);
 
 
 #endif	/* __OTHELLO_H__ */

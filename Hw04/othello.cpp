@@ -249,7 +249,7 @@ void updateLegalPoints(){
 	}
 
 	for(int i = 0 ; i < legalPoints.size() ; i ++){
-		cout << (legalPoints[i])/8 <<" "<< (legalPoints[i])%8 << ",";
+		// cout << (legalPoints[i])/8 <<" "<< (legalPoints[i])%8 << ",";
 	}
 
 	
@@ -299,4 +299,14 @@ void turnChess(int x, int y){
 bool hasLegalPoints(){
 	return legalPoints.size() > 0;
 }
+
+bool isLegalPoint(int x, int y){
+	int target = x * 8 + y;
+	vector<int>::iterator it = find(legalPoints.begin(), legalPoints.end(), target);
+	return (it != legalPoints.end());
+}
+
+
+
+
 

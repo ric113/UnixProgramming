@@ -5,6 +5,8 @@ static int width;
 static int height;
 static int cx = 3;
 static int cy = 3;
+static bool opponentNoLegalPoints = false;
+static bool gameOver = false;
 
 using namespace std;
 
@@ -25,6 +27,10 @@ main()
 	init_colors();
 
 restart:
+
+	opponentNoLegalPoints = false;
+	gameOver = false;
+
 	clear();
 	cx = cy = 3;
 	init_board();
@@ -37,12 +43,42 @@ restart:
 	move(height-1, 0);	printw("Arrow keys: move; Space: put GREEN; Return: put PURPLE; R: reset; Q: quit");
 	attroff(A_BOLD);
 
-	// updateLegalPoints();
-
 	while(true) {			// main loop
 		int ch = getch();
 		int moved = 0;
-		
+
+		updateLegalPoints();
+
+		if(!hasLegalPoints() && !gameOver){
+			moved = 1;	// for refresh 顯示 .
+
+			// opponent no legal points , too ?
+			if(opponentNoLegalPoints){
+				// Game over !
+				// count black / white chess num .
+				int black = 0 ;
+				int white = 0 ;
+				for(int i = 0 ; i < BOARDSZ ; i ++){
+					for(int j = 0 ; j < BOARDSZ ; j ++){
+						if(board[i][j] == PLAYER1) white ++;
+						else if (board[i][j] == PLAYER2) black ++;
+					}
+				}
+					
+				if(white > black) cout << "Player1 (white) Win!";
+				else if(white < black) cout << "Player2 (black) Win!";
+				else cout << "Tie!";
+
+				gameOver = true;
+
+			} else {
+				// tell opponent I dont have legal points .
+				cout << "I dont have legal point!" ;
+				opponentNoLegalPoints = true;
+			}
+			// turn to opponent .
+			turn *= -1;
+		}
 		
 
 		switch(ch) {
@@ -57,18 +93,22 @@ restart:
 		case 0x0d:
 		case 0x0a:
 		case KEY_ENTER:
-			updateLegalPoints();
-			if(hasLegalPoints()){
+		
+			if(isLegalPoint(cy, cx)){
 				board[cy][cx] = turn;
+				// cx , cy 是在顯示板上得座標 . 
 				// 注意, 在board D.S. 上的x是顯示板的y , y是顯示板的x .
 				turnChess(cy, cx);
 				draw_cursor(cx, cy, 1);
 				draw_score();
 				draw_board();
 				refresh();
-	  			turn *= -1;
 				resetLegalPoints();
-			}
+				opponentNoLegalPoints = false;
+			} else
+				break;
+			turn *= -1;
+
 			break;
 		case 'q':
 		case 'Q':
@@ -113,11 +153,13 @@ restart:
 			moved = 0;
 		}
 
+		resetLegalPoints();
 		napms(1);		// sleep for 1ms
 	}
 
 quit:
 	endwin();			// end curses mode
+
 
 	return 0;
 }
