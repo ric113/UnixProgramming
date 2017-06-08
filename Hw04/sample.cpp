@@ -1,7 +1,9 @@
 #include <iostream>
 #include <getopt.h>
 #include <stdio.h>
-#include <sys/select.h>
+#include <unistd.h>
+#include <pthread.h>
+
 
 #include "othello.h"
 #include "socket.h"
@@ -25,6 +27,24 @@ struct option long_options[] = {
 }; 
 
 using namespace std;
+
+int sockfd;
+bool peerExit = false;
+
+void * thr_fn(void *arg) {
+	while(1){
+		cout << "You say :" ;
+		int nbytes;
+		char buf[BUF_SIZE];
+		nbytes = read(sockfd,buf,BUF_SIZE);
+		if(nbytes < 1){	// socket close .
+			peerExit  = true;
+			break;
+		}
+		buf[nbytes] = '\0';
+		cout << buf << endl;
+	}
+}
 
 
 
@@ -61,6 +81,8 @@ main(int argc, char *argv[])
         }  
 
     }  
+    
+    
 
     if(isServer){
     	cout << "Server! " << endl;
@@ -68,35 +90,10 @@ main(int argc, char *argv[])
     	sscanf(l_opt_arg, "%d", &port);
     	cout << "Port :" << port << endl;
 
-    	int sockfd = serverTCP(port); 
+    	sockfd = serverTCP(port); 
 
-    	/*
-    	bool myTurn = true;
 
-    	FILE * sockFILE = fdopen(sockfd, "r+b");
 
-    	while(1){
-    		fflush(stdin);
-    		fflush(sockFILE);
-
-    		if(myTurn){
-	    		string line;
-	    		cin >> line;
-	    		fputs(line.c_str(), sockFILE);
-	    		
-	    		cout << "shift" << endl;
-	    		myTurn = !myTurn;
-			}else{
-	    		char inbuf[BUF_SIZE];
-	    		fgets(inbuf, 2, sockFILE);
-	    		
-	    		cout << inbuf << endl;
-	    		myTurn = !myTurn;
-	    		cout << "shift" << endl;
-    		}
-			
-    	}
-    	*/
 
     }
     else{
@@ -106,38 +103,19 @@ main(int argc, char *argv[])
     	sscanf(l_opt_arg, "%[^:]:%d", serverName,&port);
     	cout << "Server :" << serverName << ", Port :" << port << endl;
 
-    	int sockfd = clientTCP(serverName, port); 
+    	sockfd = clientTCP(serverName, port); 
+	}
 
-    	/*
-    	bool myTurn = false;
+	pthread_t ntid;
+	pthread_create(&ntid, NULL, thr_fn, NULL);
 
-    	FILE * sockFILE = fdopen(sockfd, "r+b");
+	while(!peerExit){
+		string line;
 
+		cin >> line;
 
-    	while(1){
-    		fflush(stdin);
-    		fflush(sockFILE);
-
-    		if(!myTurn){
-	    		char inbuf[BUF_SIZE];
-	    		fgets(inbuf, 2, sockFILE);
-	    		cout << inbuf << endl;
-	    		myTurn = !myTurn;
-	    		cout << "shift" << endl;
-    		}else{
-				string line;
-	    		cin >> line;
-	    		fputs(line.c_str(), sockFILE);
-
-	    		myTurn = !myTurn;
-	    		cout << "shift" << endl;
-	    	}
-	    	
-    	}
-    	*/
-
-    }
-	
+		write(sockfd, line.c_str(), line.size());
+	}
 
 #endif /* SOCKET_DEBUG */
 
