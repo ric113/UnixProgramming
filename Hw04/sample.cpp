@@ -1,15 +1,17 @@
+// win後msg沒跑出來?
+
 #include <iostream>
 #include <getopt.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <pthread.h>
 
-
 #include "othello.h"
 #include "socket.h"
 
-#define SOCKET_DEBUG
+
 #define BUF_SIZE 128
+#define DEBUG_MODE
 
 static int width;
 static int height;
@@ -17,6 +19,7 @@ static int cx = 3;
 static int cy = 3;
 static bool opponentNoLegalPoints = false;
 static bool gameOver = false;
+static bool opponentExit = false;
 
 char* const short_options = "s:c:";  
 
@@ -30,19 +33,54 @@ using namespace std;
 
 int sockfd;
 bool peerExit = false;
+bool myTurn;
+bool restart;
+
 
 void * thr_fn(void *arg) {
 	while(1){
-		cout << "You say :" ;
 		int nbytes;
 		char buf[BUF_SIZE];
+
+		
 		nbytes = read(sockfd,buf,BUF_SIZE);
+
 		if(nbytes < 1){	// socket close .
 			peerExit  = true;
 			break;
 		}
 		buf[nbytes] = '\0';
-		cout << buf << endl;
+		
+		// Update borad .
+		int position;
+		sscanf(buf,"%d",&position);
+		// draw_message(to_string(position).c_str(), 0);
+		// draw_board();
+		// refresh();
+		if(position == -1)
+			opponentNoLegalPoints = true;
+		else if(position == -2)
+			opponentExit = true;
+		else if(position == -3)
+			gameOver = true;
+		else if(position == -4)
+			restart = true;
+		else {
+			int x = position / 8;
+			int y = position % 8;
+			board[x][y] = -1 * mySign;
+			turnChess(x, y, -1 * mySign);
+			draw_cursor(y, x, 1);
+			draw_score();
+			draw_board();
+			draw_message("", 0);
+			draw_message("Your turn!        ", 0);
+			refresh();
+			resetLegalPoints();
+			updateLegalPoints();
+		}
+
+		myTurn = true;
 	}
 }
 
@@ -51,8 +89,6 @@ void * thr_fn(void *arg) {
 int
 main(int argc, char *argv[])
 {	
-
-#ifdef SOCKET_DEBUG
 	int c;  
 	char *l_opt_arg = NULL;  
 
@@ -63,11 +99,8 @@ main(int argc, char *argv[])
         return 0;
     }
 	
-    while((c = getopt_long (argc, argv, short_options, long_options, NULL)) != -1)  
-    { 
-
-        switch (c)  
-        {  
+    while((c = getopt_long (argc, argv, short_options, long_options, NULL)) != -1)  { 
+		switch (c){  
         case 's':  
         	l_opt_arg = optarg;
             break;  
@@ -79,47 +112,30 @@ main(int argc, char *argv[])
         	cout << "Usage : ./othello [-s|--server <Port> ] [-c|--client <IP-of-Player-1>:<Port-of-Player-1>]" << endl;
          	return 0;
         }  
-
     }  
     
-    
-
     if(isServer){
-    	cout << "Server! " << endl;
     	int port;
     	sscanf(l_opt_arg, "%d", &port);
-    	cout << "Port :" << port << endl;
 
     	sockfd = serverTCP(port); 
-
-
-
-
-    }
-    else{
-    	cout << "Client! " << endl;
+    	// myTurn = true;
+    	mySign = 1;
+	} else{
     	int port;
     	char serverName[BUF_SIZE];
     	sscanf(l_opt_arg, "%[^:]:%d", serverName,&port);
-    	cout << "Server :" << serverName << ", Port :" << port << endl;
 
     	sockfd = clientTCP(serverName, port); 
+    	// myTurn = false;
+    	mySign = -1;
 	}
 
+	// thread : listening oppenent msg .
 	pthread_t ntid;
 	pthread_create(&ntid, NULL, thr_fn, NULL);
 
-	while(!peerExit){
-		string line;
 
-		cin >> line;
-
-		write(sockfd, line.c_str(), line.size());
-	}
-
-#endif /* SOCKET_DEBUG */
-
-#ifndef SOCKET_DEBUG
 	initscr();			// start curses mode 
 	getmaxyx(stdscr, height, width);// get screen size
 
@@ -136,10 +152,30 @@ restart:
 
 	opponentNoLegalPoints = false;
 	gameOver = false;
+	restart = false;
+	
 
 	clear();
 	cx = cy = 3;
 	init_board();
+#ifdef DEBUG_MODE
+	for(int i = 0 ; i < BOARDSZ ;i ++){
+		if(i == 3 || i == 4 ) continue;
+		for(int j = 0 ; j < BOARDSZ ; j ++){
+			board[i][j] = 1;
+		}
+	}
+#endif
+
+	myTurn = isServer ? true:false;
+	if(myTurn){
+		draw_message("", 0);
+		draw_message("Your turn!        ", 0);
+	} else {
+		draw_message("", 0);
+		draw_message("Wait for opponent!", 1);
+	}
+
 	draw_board();
 	draw_cursor(cx, cy, 1);
 	draw_score();
@@ -150,7 +186,28 @@ restart:
 	attroff(A_BOLD);
 
 	while(true) {			// main loop
+
 		int ch = getch();
+
+		if(!myTurn){
+			napms(1);	
+			continue;
+		}
+
+		if(opponentExit){
+			endwin();
+			return 0;
+		}
+
+		if(gameOver){
+			showFinalMsg();
+			// pause();
+		}
+
+		if(restart)
+			goto restart;
+
+		
 		int moved = 0;
 
 		updateLegalPoints();
@@ -161,59 +218,48 @@ restart:
 			// opponent no legal points , too ?
 			if(opponentNoLegalPoints){
 				// Game over !
-				// count black / white chess num .
-				int black = 0 ;
-				int white = 0 ;
-				for(int i = 0 ; i < BOARDSZ ; i ++){
-					for(int j = 0 ; j < BOARDSZ ; j ++){
-						if(board[i][j] == PLAYER1) white ++;
-						else if (board[i][j] == PLAYER2) black ++;
-					}
-				}
-					
-				if(white > black) cout << "Player1 (white) Win!";
-				else if(white < black) cout << "Player2 (black) Win!";
-				else cout << "Tie!";
+				showFinalMsg();
 
+				// Tell oppenent .
+				write(sockfd,"-3\0",3);
 				gameOver = true;
+				// myTurn = false;
+				
+				// pause();
 
 			} else {
 				// tell opponent I dont have legal points .
-				cout << "I dont have legal point!" ;
-				opponentNoLegalPoints = true;
+				// cout << "I dont have legal point!" ;
+				write(sockfd,"-1\0",3);
+				myTurn = false;
 			}
-			// turn to opponent .
-			turn *= -1;
 		}
 		
-
 		switch(ch) {
-		// space .
-		/*
-		case ' ':
-			board[cy][cx] = PLAYER1;
-			draw_cursor(cx, cy, 1);
-			draw_score();
-			break;
-		*/
 		case 0x0d:
 		case 0x0a:
 		case KEY_ENTER:
-
 			if(isLegalPoint(cy, cx)){
-				board[cy][cx] = turn;
+				board[cy][cx] = mySign;
 				// cx , cy 是在顯示板上得座標 . 
 				// 注意, 在board D.S. 上的x是顯示板的y , y是顯示板的x .
-				turnChess(cy, cx);
+				turnChess(cy, cx, mySign);
 				draw_cursor(cx, cy, 1);
 				draw_score();
 				draw_board();
+				draw_message("", 0);
+				draw_message("Wait for opponent!", 1);
 				refresh();
 				resetLegalPoints();
 				opponentNoLegalPoints = false;
+
+				string msgToSocket = to_string(cy * 8 + cx);
+				// write postion info to oppent
+				write(sockfd,msgToSocket.c_str(),msgToSocket.size() + 1);
+				
+				myTurn = false;
 			} else
 				break;
-			turn *= -1;
 
 			break;
 		case 'q':
@@ -222,7 +268,10 @@ restart:
 			break;
 		case 'r':
 		case 'R':
-			goto restart;
+			if(gameOver){
+				write(sockfd,"-4\0",3);
+				goto restart;
+			}
 			break;
 		case 'k':
 		case KEY_UP:
@@ -264,9 +313,9 @@ restart:
 	}
 
 quit:
+	write(sockfd,"-2\0",3);
 	endwin();			// end curses mode
 
-#endif /* NO SOCKET_DEBUG */
 
 	return 0;
 }

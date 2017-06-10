@@ -17,7 +17,7 @@ using namespace std;
 
 extern int board[BOARDSZ][BOARDSZ];
 extern vector<int> legalPoints;
-extern int turn ;
+extern int mySign ;
 
 void init_board();
 void init_colors();
@@ -32,7 +32,8 @@ void draw_score();
 void updateLegalPoints();
 void resetLegalPoints();
 bool outOfBoard(int x, int y);
-void turnChess(int x, int y);
+void turnChess(int x, int y,int sign);
+void showFinalMsg();
 bool hasLegalPoints();
 bool isLegalPoint(int x, int y);
 

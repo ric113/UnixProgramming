@@ -11,7 +11,7 @@
 using namespace std;
 
 int board[BOARDSZ][BOARDSZ];
-int turn;
+int mySign;
 vector<int> legalPoints;
 
 static int const box_top = 1;
@@ -43,7 +43,7 @@ init_board() {
 	board[3][3] = board[4][4] = PLAYER1;
 	board[3][4] = board[4][3] = PLAYER2;
 
-	turn = 1;
+	// mySign = 1;
 }
 
 void
@@ -205,7 +205,7 @@ void updateLegalPoints(){
 					int currentY = j;
 
 					if(board[currentX+Directions[k][0]][currentY+Directions[k][1]] == 0 || 
-						board[currentX+Directions[k][0]][currentY+Directions[k][1]] == turn)
+						board[currentX+Directions[k][0]][currentY+Directions[k][1]] == mySign)
 							continue;
 					// copy(&tempBoard[0][0], &tempBoard[0][0]+BOARDSZ*BOARDSZ,&recordBoard[0][0]);
 					do{
@@ -215,7 +215,7 @@ void updateLegalPoints(){
 						// cout << tempBoard[currentX][currentY] << ",";
 						// tempBoard[currentX][currentY] = turn;
 						// cout << currentX << " "<<currentY << ", ";
-					}while(board[currentX][currentY] != turn && !outOfBoard(currentX, currentY) && board[currentX][currentY] != 0);
+					}while(board[currentX][currentY] != mySign && !outOfBoard(currentX, currentY) && board[currentX][currentY] != 0);
 					
 					if(!outOfBoard(currentX,currentY) && board[currentX][currentY] != 0){
 						isLegalPoint = true;
@@ -264,7 +264,8 @@ void updateLegalPoints(){
 
 }
 
-void turnChess(int x, int y){
+// sign : 以哪個sign為主 .
+void turnChess(int x, int y,int sign){
 	int currentX, currentY;
 	// cout << x << y << endl;
 	for(int i = 0 ; i < DIR_NUM ; i ++){
@@ -273,7 +274,7 @@ void turnChess(int x, int y){
 
 		
 		if(board[currentX+Directions[i][0]][currentY+Directions[i][1]] == 0 || 
-						board[currentX+Directions[i][0]][currentY+Directions[i][1]] == turn)
+						board[currentX+Directions[i][0]][currentY+Directions[i][1]] == sign)
 							continue;
 		// cout << turn << " "<<board[currentX+Directions[i][0]][currentY+Directions[i][1]] << endl;
 
@@ -281,7 +282,7 @@ void turnChess(int x, int y){
 			// cout << currentX << "," << currentY << endl;
 			currentX += Directions[i][0];
 			currentY += Directions[i][1];
-		}while(board[currentX][currentY] != turn && !outOfBoard(currentX, currentY) && board[currentX][currentY] != 0);
+		}while(board[currentX][currentY] != sign && !outOfBoard(currentX, currentY) && board[currentX][currentY] != 0);
 
 		if(!outOfBoard(currentX,currentY) && board[currentX][currentY] != 0 ){
 			do{
@@ -289,7 +290,7 @@ void turnChess(int x, int y){
 				currentX -= Directions[i][0];
 				currentY -= Directions[i][1];
 				// cout << currentX << "," << currentY << endl;
-				board[currentX][currentY] = turn;
+				board[currentX][currentY] = sign;
 			}while(currentX != x || currentY != y);
 		}
 
@@ -306,6 +307,21 @@ bool isLegalPoint(int x, int y){
 	return (it != legalPoints.end());
 }
 
+void showFinalMsg(){
+	int myChess = 0 ;
+	int OppChess = 0 ;
+	for(int i = 0 ; i < BOARDSZ ; i ++){
+		for(int j = 0 ; j < BOARDSZ ; j ++){
+			if(board[i][j] == mySign) myChess ++;
+			else if (board[i][j] == -1 * mySign) OppChess ++;
+		}
+	}
+	if(myChess > OppChess) draw_message("You Win! (Press \'R\' to Restart) 		", 0);
+	else if(myChess < OppChess) draw_message("You Lose! (Press \'R\' to Restart) 	", 0);
+	else draw_message("Tie (Press \'R\' to Restart)		", 0);
+	draw_board();
+	refresh();
+}
 
 
 
