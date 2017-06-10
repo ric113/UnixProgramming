@@ -1,5 +1,3 @@
-// win後msg沒跑出來?
-
 #include <iostream>
 #include <getopt.h>
 #include <stdio.h>
@@ -9,9 +7,7 @@
 #include "othello.h"
 #include "socket.h"
 
-
 #define BUF_SIZE 128
-#define DEBUG_MODE
 
 static int width;
 static int height;
@@ -38,7 +34,7 @@ bool restart;
 
 
 void * thr_fn(void *arg) {
-	while(1){
+	while(true){
 		int nbytes;
 		char buf[BUF_SIZE];
 
@@ -46,7 +42,6 @@ void * thr_fn(void *arg) {
 		nbytes = read(sockfd,buf,BUF_SIZE);
 
 		if(nbytes < 1){	// socket close .
-			peerExit  = true;
 			break;
 		}
 		buf[nbytes] = '\0';
@@ -57,8 +52,13 @@ void * thr_fn(void *arg) {
 		// draw_message(to_string(position).c_str(), 0);
 		// draw_board();
 		// refresh();
-		if(position == -1)
+		if(position == -1){
 			opponentNoLegalPoints = true;
+			draw_message("", 0);
+
+			draw_message("Opponent no legal step, Still your turn!\t\t", 0);
+			refresh();
+		}
 		else if(position == -2)
 			opponentExit = true;
 		else if(position == -3)
@@ -74,7 +74,7 @@ void * thr_fn(void *arg) {
 			draw_score();
 			draw_board();
 			draw_message("", 0);
-			draw_message("Your turn!        ", 0);
+			draw_message("Your turn!\t\t\t\t\t\t\t", 0);
 			refresh();
 			resetLegalPoints();
 			updateLegalPoints();
@@ -95,7 +95,7 @@ main(int argc, char *argv[])
 	bool isServer = true;
 
 	if(argc < 2){
-		cout << "Usage : ./othello [-s|--server <Port> ] [-c|--client <IP-of-Player-1>:<Port-of-Player-1>]" << endl;
+		cout << "Usage : ./hw4 [-s|--server <Port> ] [-c|--client <IP-of-Player-1>:<Port-of-Player-1>]" << endl;
         return 0;
     }
 	
@@ -109,7 +109,7 @@ main(int argc, char *argv[])
         	l_opt_arg = optarg;
             break;  
         default:
-        	cout << "Usage : ./othello [-s|--server <Port> ] [-c|--client <IP-of-Player-1>:<Port-of-Player-1>]" << endl;
+        	cout << "Usage : ./hw4 [-s|--server <Port> ] [-c|--client <IP-of-Player-1>:<Port-of-Player-1>]" << endl;
          	return 0;
         }  
     }  
@@ -168,12 +168,13 @@ restart:
 #endif
 
 	myTurn = isServer ? true:false;
+
 	if(myTurn){
 		draw_message("", 0);
-		draw_message("Your turn!        ", 0);
+		draw_message("Your turn!\t\t\t\t\t\t\t", 0);
 	} else {
 		draw_message("", 0);
-		draw_message("Wait for opponent!", 1);
+		draw_message("Wait for opponent!\t\t\t\t\t", 1);
 	}
 
 	draw_board();
@@ -182,7 +183,7 @@ restart:
 	refresh();
 
 	attron(A_BOLD);
-	move(height-1, 0);	printw("Arrow keys: move; Space: put GREEN; Return: put PURPLE; R: reset; Q: quit");
+	move(height-1, 0);	printw("Arrow keys: move; Return: put chess; Q: quit");
 	attroff(A_BOLD);
 
 	while(true) {			// main loop
@@ -201,7 +202,6 @@ restart:
 
 		if(gameOver){
 			showFinalMsg();
-			// pause();
 		}
 
 		if(restart)
@@ -213,24 +213,21 @@ restart:
 		updateLegalPoints();
 
 		if(!hasLegalPoints() && !gameOver){
-			moved = 1;	// for refresh 顯示 .
-
 			// opponent no legal points , too ?
 			if(opponentNoLegalPoints){
 				// Game over !
 				showFinalMsg();
-
 				// Tell oppenent .
 				write(sockfd,"-3\0",3);
-				gameOver = true;
-				// myTurn = false;
-				
-				// pause();
 
+				gameOver = true;
 			} else {
 				// tell opponent I dont have legal points .
 				// cout << "I dont have legal point!" ;
 				write(sockfd,"-1\0",3);
+				draw_message("", 0);
+				draw_message("No Legal Step,Wait for opponent!\t\t", 1);
+				refresh();
 				myTurn = false;
 			}
 		}
@@ -248,7 +245,7 @@ restart:
 				draw_score();
 				draw_board();
 				draw_message("", 0);
-				draw_message("Wait for opponent!", 1);
+				draw_message("Wait for opponent!\t\t\t\t\t\t\t", 1);
 				refresh();
 				resetLegalPoints();
 				opponentNoLegalPoints = false;

@@ -42,8 +42,6 @@ init_board() {
 	bzero(board, sizeof(board));
 	board[3][3] = board[4][4] = PLAYER1;
 	board[3][4] = board[4][3] = PLAYER2;
-
-	// mySign = 1;
 }
 
 void
@@ -171,26 +169,10 @@ bool outOfBoard(int x, int y){
 }
 
 void resetLegalPoints(){
-	/*
-	map<int, int**>::iterator it = legalPoints.begin();
-
-	while(it != legalPoints.end()){
-		for(int i = 0 ; i < BOARDSZ ; i ++)
-		{
-			free((it->second)[i]); 
-		}
-		free(it->second);
-
-		it ++;
-	}
-	*/
 	legalPoints.clear();
-
 }
 
 void updateLegalPoints(){
-	// int tempBoard[BOARDSZ][BOARDSZ];
-	// int recordBoard[BOARDSZ][BOARDSZ];
 	for(int i = 0 ; i < BOARDSZ ; i ++){
 		for(int j = 0 ; j < BOARDSZ ; j ++){
 			bool isLegalPoint = false;
@@ -228,39 +210,10 @@ void updateLegalPoints(){
 			}
 
 			
-			if(isLegalPoint){
-				/*
-				// malloc a 2d array
-				int **ptr = NULL;
-				ptr = (int**)malloc(sizeof(int*) * BOARDSZ);
-
-				for(int i = 0 ; i < BOARDSZ ; i ++)
-				{
-					ptr[i] = (int*)malloc(sizeof(int) * BOARDSZ);
-				}
-
-				copy(&tempBoard[0][0], &tempBoard[0][0]+BOARDSZ*BOARDSZ,&ptr[0][0]);
-				// push to D.S.
-				*/
+			if(isLegalPoint)
 				legalPoints.push_back(i*BOARDSZ + j);
-			}
-			
 		}
 	}
-
-	for(int i = 0 ; i < legalPoints.size() ; i ++){
-		// cout << (legalPoints[i])/8 <<" "<< (legalPoints[i])%8 << ",";
-	}
-
-	
-	// map<int, int**>::iterator it = legalPoints.begin();
-
-	// while(it != legalPoints.end()){
-		// cout << (it->first)/8 <<" "<< (it->first)%8 << ",";
-		// printf("%p", &(*it));
-		// it++;
-	// }
-
 
 }
 
@@ -316,9 +269,9 @@ void showFinalMsg(){
 			else if (board[i][j] == -1 * mySign) OppChess ++;
 		}
 	}
-	if(myChess > OppChess) draw_message("You Win! (Press \'R\' to Restart) 		", 0);
-	else if(myChess < OppChess) draw_message("You Lose! (Press \'R\' to Restart) 	", 0);
-	else draw_message("Tie (Press \'R\' to Restart)		", 0);
+	if(myChess > OppChess) draw_message("You Win! (Press \'R\' to Restart)\t\t\t\t\t\t\t", 0);
+	else if(myChess < OppChess) draw_message("You Lose! (Press \'R\' to Restart)\t\t\t\t\t\t\t", 0);
+	else draw_message("Tie (Press \'R\' to Restart)\t\t\t\t\t\t\t", 0);
 	draw_board();
 	refresh();
 }
