@@ -16,7 +16,7 @@ $ ./othello -c <IP-of-Player-1>:12345
 
 To simplify your implementation, the game board can be drawn using the [ncurses](http://man7.org/linux/man-pages/man3/ncurses.3x.html) library (libncurses5-dev package on Ubuntu). <br><br>
 
-Requirements :
+#### Requirements :
 
 * Your program can act as either a server (player #1) or a client (player #2) by using the respective command arguments.
 * A server has to wait for a client connection.
@@ -27,3 +27,11 @@ Requirements :
 * Implement the rest of game logics.
 * When there is no more moves, display a message to show the player wins or loses.
 * Ensure the both two players have the same view of game board. If either the client or the server quits, the peer has to be terminated as well.
+
+#### Result :
+
+* Server 
+![](https://github.com/ric113/UnixProgramming/tree/master/Hw04/server.png)
+* Client 
+![](https://github.com/ric113/UnixProgramming/tree/master/Hw04/client.png)
+
