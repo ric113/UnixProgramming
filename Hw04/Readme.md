@@ -31,7 +31,7 @@ To simplify your implementation, the game board can be drawn using the [ncurses]
 #### Result :
 
 * Server 
-![](https://github.com/ric113/UnixProgramming/tree/master/Hw04/server.png)
+![](https://github.com/ric113/UnixProgramming/blob/master/Hw04/server.png)
 * Client 
-![](https://github.com/ric113/UnixProgramming/tree/master/Hw04/client.png)
+![](https://github.com/ric113/UnixProgramming/blob/master/Hw04/client.png)
 
