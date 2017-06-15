@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <netdb.h>
 #include <iostream>
+#include <strings.h>
 
 #include "socket.h"
 
@@ -41,7 +42,7 @@ int clientTCP(const char *serverName, int serverPORT){
 	struct hostent *he; 
 
 	if((he=gethostbyname(serverName)) == NULL){
-	 	fprintf(stderr,"Usage : ./othello -c <IP-of-Player-1>:<Port-of-Player-1>");
+	 	fprintf(stderr,"Usage : ./hw4 -c <IP-of-Player-1>:<Port-of-Player-1\n");
 	 	exit(1);
 	}
 
